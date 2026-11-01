@@ -246,3 +246,17 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
   在 `onDisable` 时自动调用。
 - 守护测试：`api/src/test/kotlin/cn/starfallplain/sfplogin/api/profile/CredentialLinkFlowTest.kt`、
   `velocity/src/test/kotlin/cn/starfallplain/sfplogin/runtime/ModuleRegistrarTest.kt`。
+
+## 18. 认证服回传档案校验（outpre）
+
+- **不变式**：outpre 模式下代理把“声明的身份”用 modern forwarding 发给认证服，认证服在
+  `ServerLoginSuccess` 里回传它认可的档案。两者必须一致，否则说明链路被改写
+  （forwarding secret 不一致、多套了一层代理、非预期插件修改了登录包）。
+- **失败处理**：`velocity/.../vServer/outpre/OutPreLoginClaimVerifier` 只做纯判断，
+  `OutPreBackendBridgeSessionHandler.handle(ServerLoginSuccessPacket)` 在放行之前调用它；
+  不一致时记录 error（含 `expected(uuid=…, name=…) returned(uuid=…, name=…)`）、
+  用 `MessageKeys.BackendAuth.CLAIM_MISMATCH` 断开客户端，并 `onBackendDisconnected(...)` 走
+  既有的“清会话、退回等待区”路径——**不得**继续把玩家放行到后端世界。
+- **比较规则**：用户名去首尾空白后忽略大小写；UUID 只在双方都提供时比较（老握手可能不带 UUID
+  字段，这种握手已由 forwarding 校验保证，不应因缺字段拒绝）。
+- 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/vServer/outpre/OutPreLoginClaimVerifierTest.kt`。

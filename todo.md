@@ -138,8 +138,8 @@
 - [x] **A2 统一等待区状态**（`OutPreState` vs `BackendHoldState` 合并）：`WaitingAreaSessionState`（authTarget、returnTarget、initialFlowPending、verifiedExitPending）+ `WaitingAreaGate`；先接 outpre，backend 删除后不保留 backend 状态
 - [x] **A3 ConnectionHandoff + 隔离 proxy join**：`join/held/verified/released/failed` 状态机；`eventLoop().join()` 从事件回调移除（`ProfileSkinApplySupport`、`ServerLoginSuccessPacketReplacer`）
 - [x] **A4 CredentialFlow 显式 LinkSubmit + 模块可重注册**：`submit/consume/link` 三态；`ChannelPasswordGateRegistry` / `CredentialChannelRegistry` 提供 unregister；模块注册失败回滚
-- [ ] **A5 outpre 认证会话校验**（原 A6 绑定收敛已随绑定删除取消）：外部认证服返回的档案必须与 claim 的一致；失败回滚等待区
-- [ ] **A6 提交**：`refactor(core): 生命周期与等待区状态收敛`
+- [x] **A5 outpre 认证会话校验**（原 A6 绑定收敛已随绑定删除取消）：外部认证服返回的档案必须与 claim 的一致；失败回滚等待区 —— 已由 `OutPreLoginClaimVerifier` 在 `OutPreBackendBridgeSessionHandler.handle(ServerLoginSuccessPacket)` 放行前校验，不一致时断开并清会话退回等待区（用户名忽略大小写比较，双方都有 UUID 时才比 UUID）；单测 `OutPreLoginClaimVerifierTest`
+- [x] **A6 提交**：`refactor(core): 生命周期与等待区状态收敛` —— A1–A5 已各自提交（`8103389`/`0f886c1`/`d5dc914`/`93a3514` + A5 本次提交）
 
 ## B 组：LoginManager / 配置 / 转发重写
 

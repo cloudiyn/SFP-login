@@ -33,6 +33,11 @@ import com.velocitypowered.proxy.protocol.packet.config.FinishedUpdatePacket
 import cn.starfallplain.sfplogin.api.log.HyperZoneDebugType
 import cn.starfallplain.sfplogin.api.log.debug
 import cn.starfallplain.sfplogin.manager.HyperChatCommandManagerImpl
+import cn.starfallplain.sfplogin.message.MessageKeys
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.vServer.outpre.OutPreClaimMismatch
+import cn.starfallplain.sfplogin.vServer.outpre.OutPreClaimedIdentity
+import cn.starfallplain.sfplogin.vServer.outpre.OutPreLoginClaimVerifier
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreBackendBridge
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
@@ -46,6 +51,10 @@ import net.kyori.adventure.text.TranslatableComponent
 class OutPreBackendBridgeSessionHandler(
     private val bridge: OutPreBackendBridge,
 ) : MinecraftSessionHandler {
+
+    companion object {
+        private val logger = org.slf4j.LoggerFactory.getLogger(OutPreBackendBridgeSessionHandler::class.java)
+    }
 
     private fun refreshWaitingAreaCommands(force: Boolean = false) {
         val clientHandler = bridge.player.connection.activeSessionHandler as? OutPreClientBridgeSessionHandler
@@ -82,6 +91,31 @@ class OutPreBackendBridgeSessionHandler(
             }
         }
         bridge.onBackendDisconnected(reason)
+    }
+
+    private fun verifyLoginClaim(packet: ServerLoginSuccessPacket): OutPreClaimMismatch? {
+        val returned = runCatching {
+            OutPreClaimedIdentity(packet.uuid, packet.username)
+        }.getOrNull() ?: return null
+        val profile = bridge.player.gameProfile
+        return OutPreLoginClaimVerifier.verify(
+            expected = OutPreClaimedIdentity(profile.id, profile.name),
+            returned = returned,
+        )
+    }
+
+    private fun rejectLoginClaim(mismatch: OutPreClaimMismatch) {
+        val detail = mismatch.describe()
+        logger.error(
+            "[OutPreAuth] 认证服回传的档案与登录声明不一致，已中止登录: player={} {}",
+            bridge.player.username,
+            detail,
+        )
+        val reason = runCatching {
+            sfpLoginMain().messageService.render(bridge.player, MessageKeys.BackendAuth.CLAIM_MISMATCH)
+        }.getOrNull() ?: Component.text("认证服返回的档案与本次登录声明不一致，已中止登录。")
+        bridge.player.disconnect(reason)
+        bridge.onBackendDisconnected("profile claim mismatch: $detail")
     }
 
     override fun handle(packet: EncryptionRequestPacket): Boolean {
@@ -141,6 +175,15 @@ class OutPreBackendBridgeSessionHandler(
 
     override fun handle(packet: ServerLoginSuccessPacket): Boolean {
 //        省略一个modern转发bug提示 CTD兼容
+
+        // 认证服必须回传与本次登录声明一致的档案。不一致通常意味着 forwarding 链路被改写
+        // （secret 与认证服不匹配、多一层代理、非预期插件），继续放行会把玩家以错误身份
+        // 写进后端世界，因此这里中止登录并退回等待区。
+        val mismatch = verifyLoginClaim(packet)
+        if (mismatch != null) {
+            rejectLoginClaim(mismatch)
+            return true
+        }
 
         val connection = bridge.ensureConnected()
         if (connection.protocolVersion.lessThan(ProtocolVersion.MINECRAFT_1_20_2)) {

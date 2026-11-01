@@ -78,6 +78,7 @@ object MessageKeys {
         const val ENTER_FAILED_EXCEPTION = "backend-auth.enter-failed.exception"
         const val ENTER_FAILED_REASON = "backend-auth.enter-failed.reason"
         const val MISCONFIGURED_DISCONNECT = "backend-auth.misconfigured-disconnect"
+        const val CLAIM_MISMATCH = "backend-auth.claim-mismatch"
         const val UNAVAILABLE_DISCONNECT = "backend-auth.unavailable-disconnect"
         const val MUST_VERIFY_BEFORE_TRANSFER = "backend-auth.must-verify-before-transfer"
         const val EXIT_NO_TARGET = "backend-auth.exit.no-target"
