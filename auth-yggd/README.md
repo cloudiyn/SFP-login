@@ -4,15 +4,15 @@ Auth Yggdrasil 模块 (hzl-auth-yggd)
 
 目的
 ----
-本模块为 HyperZoneLogin 提供基于 Yggdrasil（Mojang 风格）在线验证的子模块能力：
+本模块为 SFP-login 提供基于 Yggdrasil（Mojang 风格）在线验证的子模块能力：
 - 通过配置的多个 Yggdrasil Entry 向第三方或官方服务发起并发验证请求；
 - 在验证成功时可将 Entry 记录与本地 profile 绑定，实现一层登录/注册自动化流程；
 - 提供配置管理、Entry 表管理与并发验证的实现细节。
 
 集成与运行时行为（*不包含构建步骤*）
 ----------------------------------
-- 将模块的 jar 放入 Velocity `plugins/` 文件夹并确保主插件 `hyperzonelogin` 已加载。
-- 本模块在启动时会检测主插件并调用 `HyperZoneLoginMain.getInstance().registerModule(YggdrasilSubModule())` 完成注册；若主插件尚不可用，会记录警告并等待主插件就绪。
+- 将模块的 jar 放入 Velocity `plugins/` 文件夹并确保主插件 `sfplogin` 已加载。
+- 本模块在启动时会检测主插件并调用 `SFPLoginMain.getInstance().registerModule(YggdrasilSubModule())` 完成注册；若主插件尚不可用，会记录警告并等待主插件就绪。
 
 主要技术细节
 -------------

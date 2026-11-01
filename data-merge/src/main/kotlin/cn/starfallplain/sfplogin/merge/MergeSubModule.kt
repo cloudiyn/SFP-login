@@ -1,0 +1,102 @@
+/*
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
+ *
+ * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
+ * Copyright (C) contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+package cn.starfallplain.sfplogin.merge
+
+import cn.starfallplain.sfplogin.api.HyperZoneApi
+import cn.starfallplain.sfplogin.api.db.HyperZoneDatabaseManager
+import cn.starfallplain.sfplogin.api.log.info
+import cn.starfallplain.sfplogin.api.log.warn
+import cn.starfallplain.sfplogin.api.message.HyperZoneModuleMessageResources
+import cn.starfallplain.sfplogin.api.module.HyperSubModule
+import cn.starfallplain.sfplogin.api.util.ConfigLoader
+import cn.starfallplain.sfplogin.merge.command.MergeCommand
+import cn.starfallplain.sfplogin.merge.config.MergeAmConfig
+import cn.starfallplain.sfplogin.merge.config.MergeMlConfig
+import cn.starfallplain.sfplogin.merge.service.AmDataMigrator
+import cn.starfallplain.sfplogin.merge.service.MlDataMigrator
+import java.nio.file.Files
+import java.nio.file.Path
+
+class MergeSubModule : HyperSubModule {
+    override fun register(api: HyperZoneApi) {
+        val proxy = api.proxy
+        val dataDirectory = api.dataDirectory
+        val databaseManager: HyperZoneDatabaseManager = api.databaseManager
+        HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "data-merge", javaClass.classLoader)
+        val mergeMlConfig = loadMergeMlConfig(dataDirectory)
+        val mergeAmConfig = loadMergeAmConfig(dataDirectory)
+        val mlMigrator = MlDataMigrator(dataDirectory, databaseManager, mergeMlConfig)
+        val amMigrator = AmDataMigrator(dataDirectory, databaseManager, mergeAmConfig)
+
+        val mergeCommand = MergeCommand(
+            runMlMigration = {
+                val report = mlMigrator.migrate()
+                "profiles(created=${report.targetProfilesCreated}, matched=${report.targetProfilesMatched}, failed=${report.targetProfileFailures}), " +
+                    "entries(created=${report.targetEntriesCreated}, matched=${report.targetEntriesMatched}, conflicts=${report.targetEntryConflicts}, failed=${report.targetEntryFailures}, missingProfile=${report.missingProfileReference}), " +
+                    "floodgate(created=${report.floodgateEntriesCreated}, matched=${report.floodgateEntriesMatched}, conflicts=${report.floodgateEntryConflicts}, failed=${report.floodgateEntryFailures}, invalidUuid=${report.floodgateInvalidUuid})"
+            },
+            runAmMigration = {
+                val report = amMigrator.migrate()
+                "profiles(created=${report.targetProfilesCreated}, matched=${report.targetProfilesMatched}, failed=${report.targetProfileFailures}), " +
+                    "offlineAuth(created=${report.targetOfflineAuthCreated}, matched=${report.targetOfflineAuthMatched}, updated=${report.targetOfflineAuthUpdated}, conflicts=${report.targetOfflineAuthConflicts}, failed=${report.targetOfflineAuthFailures}, invalidPassword=${report.invalidPasswordFormat})"
+            }
+        ).createCommand()
+        val mergeCommandMeta = proxy.commandManager.metaBuilder(mergeCommand).build()
+        proxy.commandManager.register(mergeCommandMeta, mergeCommand)
+
+        info { "MergeSubModule 已加载，命令 /hzl-merge ml 和 /hzl-merge am 可用" }
+    }
+
+    private fun loadMergeMlConfig(dataDirectory: Path): MergeMlConfig {
+        val mergeDirectory = dataDirectory.resolve("data-merge")
+        Files.createDirectories(mergeDirectory)
+
+        return ConfigLoader.loadConfig(
+            dataDirectory = mergeDirectory,
+            fileName = "multilogin.conf",
+            defaultProvider = { MergeMlConfig() },
+            postLoadHook = { _, loaded, firstCreation ->
+                if (firstCreation) {
+                    warn { "首次创建 data-merge/multilogin.conf，请按需修改后再执行 /hzl-merge ml" }
+                }
+                loaded
+            }
+        )
+    }
+
+    private fun loadMergeAmConfig(dataDirectory: Path): MergeAmConfig {
+        val mergeDirectory = dataDirectory.resolve("data-merge")
+        Files.createDirectories(mergeDirectory)
+
+        return ConfigLoader.loadConfig(
+            dataDirectory = mergeDirectory,
+            fileName = "authme.conf",
+            defaultProvider = { MergeAmConfig() },
+            postLoadHook = { _, loaded, firstCreation ->
+                if (firstCreation) {
+                    warn { "首次创建 data-merge/authme.conf，请按需修改后再执行 /hzl-merge am" }
+                }
+                loaded
+            }
+        )
+    }
+}

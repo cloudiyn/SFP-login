@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -19,13 +19,13 @@
  *
  */
 
-import icu.h2l.gradle.needPackageCompileOnly
+import cn.starfallplain.sfplogin.gradle.needPackageCompileOnly
 
 extra["hzl.runtimeDependencyResourcePath"] = "META-INF/hzl/cli-runtime-dependencies.properties"
 
 plugins {
     alias(libs.plugins.kotlin)
-    id("icu.h2l.runtime-dependencies")
+    id("cn.starfallplain.sfplogin.runtime-dependencies")
     kotlin("kapt")
 }
 

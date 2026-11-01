@@ -1,14 +1,14 @@
-# HyperZoneLogin CLI
+# SFP-login CLI
 
-Command-line interface for deploying and managing HyperZoneLogin server stacks.
+Command-line interface for deploying and managing SFP-login server stacks.
 
 ## Overview
 
-The CLI module provides the `easydeploy` command to automatically set up a complete HyperZoneLogin server infrastructure in a single command. It generates configuration files, downloads server JARs, and creates startup scripts for Windows and Unix-like systems.
+The CLI module provides the `easydeploy` command to automatically set up a complete SFP-login server infrastructure in a single command. It generates configuration files, downloads server JARs, and creates startup scripts for Windows and Unix-like systems.
 
 ## Installation
 
-The CLI is built as part of the main HyperZoneLogin build:
+The CLI is built as part of the main SFP-login build:
 
 ```bash
 ./gradlew build
@@ -16,7 +16,7 @@ The CLI is built as part of the main HyperZoneLogin build:
 
 The resulting JAR will be available at:
 ```
-build/HZL/HyperZoneLogin-<version>-<commit>-all.jar
+build/HZL/SFP-login-<version>-<commit>-all.jar
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ build/HZL/HyperZoneLogin-<version>-<commit>-all.jar
 Run the easydeploy command to set up a complete server stack:
 
 ```bash
-java -jar HyperZoneLogin-<version>-all.jar easydeploy
+java -jar SFP-login-<version>-all.jar easydeploy
 ```
 
 This will:
@@ -68,7 +68,7 @@ This will:
 - `--overwrite` — Overwrite existing config files and re-download JARs
 - `--no-paper-download` — Skip downloading Paper, place JARs manually in `auth/` and `play/`
 - `--no-velocity-download` — Skip downloading Velocity, place JAR manually in `velocity/`
-- `--plugin-jar <path>` — Path to HyperZoneLogin plugin JAR (will be copied to `velocity/plugins/`)
+- `--plugin-jar <path>` — Path to SFP-login plugin JAR (will be copied to `velocity/plugins/`)
 
 #### Security
 
@@ -80,19 +80,19 @@ This will:
 
 #### Minimal deployment (download everything)
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy
+java -jar SFP-login-all.jar easydeploy
 ```
 
 #### Use specific versions
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy \
+java -jar SFP-login-all.jar easydeploy \
   --paper-version 1.21.3 \
   --velocity-version 3.3.0
 ```
 
 #### Deploy without downloads (manual JAR placement)
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy \
+java -jar SFP-login-all.jar easydeploy \
   --no-paper-download \
   --no-velocity-download
 ```
@@ -106,19 +106,19 @@ velocity/velocity-3.4.0-xxx.jar
 
 #### Include the plugin JAR
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy \
-  --plugin-jar ./HyperZoneLogin-plugin.jar
+java -jar SFP-login-all.jar easydeploy \
+  --plugin-jar ./SFP-login-plugin.jar
 ```
 
 #### Custom security secret
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy \
+java -jar SFP-login-all.jar easydeploy \
   --forwarding-secret "your-secret-here"
 ```
 
 #### Overwrite and regenerate everything
 ```bash
-java -jar HyperZoneLogin-all.jar easydeploy --overwrite
+java -jar SFP-login-all.jar easydeploy --overwrite
 ```
 
 ## Generated Directory Structure
@@ -129,8 +129,8 @@ deploy-directory/
 │   ├── velocity.toml              # Main Velocity config
 │   ├── forwarding.secret          # Modern forwarding secret
 │   ├── plugins/
-│   │   ├── HyperZoneLogin-xxx.jar # Plugin JAR (if --plugin-jar provided)
-│   │   └── hyperzonelogin/
+│   │   ├── SFP-login-xxx.jar # Plugin JAR (if --plugin-jar provided)
+│   │   └── sfplogin/
 │   │       ├── start.conf         # Plugin startup config
 │   │       └── libs/              # Plugin runtime dependencies
 │   ├── start.bat                  # Windows startup script
@@ -258,7 +258,7 @@ This dramatically speeds up server startup on subsequent runs.
 ### Building from source
 
 ```bash
-cd HyperzoneLogin
+cd SFP-login
 ./gradlew cli:build
 ```
 
@@ -306,5 +306,5 @@ Place plugins in `velocity/plugins/` and `auth/plugins/` / `play/plugins/` direc
 
 ## Support
 
-For issues or feature requests, refer to the main HyperZoneLogin documentation at `https://docs.h2l.icu/`
+For issues or feature requests, refer to the main SFP-login documentation at `https://docs.h2l.icu/`
 

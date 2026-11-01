@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -306,7 +306,7 @@ val ctdPluginBundleDir = layout.buildDirectory.dir("HZL-ctd")
 
 val collectPluginJars = tasks.register<Sync>("collectPluginJars") {
     group = "build"
-    description = "Collects the all-in-one HyperZoneLogin jar (plugin + CLI tool) into one distribution directory."
+    description = "Collects the all-in-one SFP-login jar (plugin + CLI tool) into one distribution directory."
     into(pluginBundleDir)
 
     val velocityProject = project(":velocity")
@@ -338,7 +338,7 @@ val collectSplitPluginJars = tasks.register<Sync>("collectSplitPluginJars") {
 
 val buildVelocityCtd = tasks.register<Exec>("buildVelocityCtd") {
     group = "build"
-    description = "Builds VelocityCTD-flavored HyperZoneLogin jars using com.velocityctd Velocity dependencies."
+    description = "Builds VelocityCTD-flavored SFP-login jars using com.velocityctd Velocity dependencies."
     workingDir = rootDir
 
     // VelocityCTD is built as a separate Gradle invocation, NOT a nested in-process build.
@@ -371,40 +371,40 @@ val buildVelocityCtd = tasks.register<Exec>("buildVelocityCtd") {
 
 val collectCtdPluginJars = tasks.register<Sync>("collectCtdPluginJars") {
     group = "build"
-    description = "Collects VelocityCTD-flavored HyperZoneLogin jars into one distribution directory."
+    description = "Collects VelocityCTD-flavored SFP-login jars into one distribution directory."
     into(ctdPluginBundleDir)
     dependsOn(buildVelocityCtd)
 
     val velocityProject = project(":velocity")
     // CTD jars now live in libs-ctd/ so they never mix with the official libs/ output.
-    from(velocityProject.layout.buildDirectory.file("libs-ctd/HyperZoneLogin-${version}-ctd.jar"))
-    from(velocityProject.layout.buildDirectory.file("libs-ctd/HyperZoneLogin-${version}-all-ctd.jar"))
+    from(velocityProject.layout.buildDirectory.file("libs-ctd/SFP-login-${version}-ctd.jar"))
+    from(velocityProject.layout.buildDirectory.file("libs-ctd/SFP-login-${version}-all-ctd.jar"))
 }
 
 val buildMonolith = tasks.register("buildMonolith") {
     group = "build"
-    description = "Builds the all-in-one HyperZoneLogin distribution."
+    description = "Builds the all-in-one SFP-login distribution."
     dependsOn(collectPluginJars)
 }
 
 val buildAllDistributions = tasks.register("buildAllDistributions") {
     group = "build"
-    description = "Builds both the all-in-one and split HyperZoneLogin distributions."
+    description = "Builds both the all-in-one and split SFP-login distributions."
     dependsOn(collectPluginJars)
     dependsOn(collectSplitPluginJars)
 }
 
 val buildCtdDistributions = tasks.register("buildCtdDistributions") {
     group = "build"
-    description = "Builds the VelocityCTD-flavored HyperZoneLogin distribution."
+    description = "Builds the VelocityCTD-flavored SFP-login distribution."
     dependsOn(collectCtdPluginJars)
 }
 
 val printVersionInfo = tasks.register("printVersionInfo") {
     group = "help"
-    description = "Prints the resolved HyperZoneLogin version components."
+    description = "Prints the resolved SFP-login version components."
     doLast {
-        println("HyperZoneLogin version: $computedVersion")
+        println("SFP-login version: $computedVersion")
         println("  baseVersion    = $baseVersion")
         println("  releaseChannel = ${releaseChannel.name}")
         println("  gitIdentifier  = ${gitIdentifier ?: "<none>"}")

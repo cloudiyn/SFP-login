@@ -1,6 +1,6 @@
 # Profile Skin 模块
 
-`profile-skin` 是 `HyperZoneLogin` 的独立子模块，用于在档案替换链路中修复与应用玩家皮肤属性。
+`profile-skin` 是 `SFP-login` 的独立子模块，用于在档案替换链路中修复与应用玩家皮肤属性。
 
 ## 功能
 

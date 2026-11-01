@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -96,7 +96,7 @@ fun stageRunDirectoryConfigFiles(runDirFile: File) {
         """
         config-version = "2.8"
         bind = "127.0.0.1:25575"
-        motd = "<green>HyperZoneLogin VC Runtest"
+        motd = "<green>SFP-login VC Runtest"
         show-max-players = 1
         online-mode = false
         force-key-authentication = false
@@ -171,7 +171,7 @@ fun stageRunDirectoryConfigFiles(runDirFile: File) {
     )
 
     writeIfMissing(
-        runDirFile.resolve("plugins/hyperzonelogin/start.conf"),
+        runDirFile.resolve("plugins/sfplogin/start.conf"),
         """
         language="zh_cn"
         format=hocon
@@ -201,9 +201,9 @@ val installVcRuntestPlugin = tasks.register<Copy>("installVcRuntestPlugin") {
     doFirst {
         runPluginsDir.asFile.mkdirs()
         runPluginsDir.asFile.listFiles()
-            ?.filter { file -> file.isFile && (file.name.startsWith("HyperZoneLogin-") || file.name == "vc-runtest.jar") }
+            ?.filter { file -> file.isFile && (file.name.startsWith("SFP-login-") || file.name == "vc-runtest.jar") }
             ?.forEach { file ->
-                if (file.name.startsWith("HyperZoneLogin-")) {
+                if (file.name.startsWith("SFP-login-")) {
                     file.delete()
                 }
             }

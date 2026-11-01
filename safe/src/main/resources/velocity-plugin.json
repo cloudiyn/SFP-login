@@ -1,9 +1,9 @@
 {
   "id": "hzl-safe",
-  "name": "HyperZoneLogin - Safe",
+  "name": "SFP-login - Safe",
   "version": "${pluginVersion}",
   "authors": ["ksqeib"],
-  "dependencies": [{"id":"hyperzonelogin","optional":false}],
-  "main": "icu.h2l.login.safe.SafeBootstrap"
+  "dependencies": [{"id":"sfplogin","optional":false}],
+  "main": "cn.starfallplain.sfplogin.safe.SafeBootstrap"
 }
 

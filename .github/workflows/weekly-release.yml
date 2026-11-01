@@ -43,7 +43,7 @@ jobs:
         run: |
           TAG="weekly-$(date -u +%G).W$(date -u +%V)"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "name=HyperZoneLogin $TAG" >> "$GITHUB_OUTPUT"
+          echo "name=SFP-login $TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin jars
         run: ./gradlew clean build buildCtdDistributions -PreleaseChannel=WEEKLY
@@ -68,7 +68,7 @@ jobs:
             build/HZL/*
             build/HZL-ctd/*
           body: |
-            This is an automatically generated weekly prerelease build for HyperZoneLogin.
+            This is an automatically generated weekly prerelease build for SFP-login.
 
             Included artifacts are collected from `build/HZL/` and VelocityCTD artifacts are collected from `build/HZL-ctd/`.
 

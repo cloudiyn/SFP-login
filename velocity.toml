@@ -1,6 +1,6 @@
 config-version = "2.8"
 bind = "127.0.0.1:25575"
-motd = "<green>HyperZoneLogin VC Runtest"
+motd = "<green>SFP-login VC Runtest"
 show-max-players = 1
 online-mode = false
 force-key-authentication = false

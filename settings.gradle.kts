@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -40,7 +40,7 @@ plugins {
 }
 
 
-rootProject.name = "HyperzoneLogin"
+rootProject.name = "SFP-login"
 
 include("velocity")
 include("vc-runtest")

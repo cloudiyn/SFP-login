@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProjectGraph 查看器</title>
+<style>
+  :root {
+    --bg: #1e1e2e; --panel: #27273a; --border: #3a3a52; --text: #cdd6f4;
+    --muted: #7f849c; --accent: #89b4fa; --node-bg: #313244; --node-border: #585b70;
+    --edge: #6c7086; --section-border: #45475a; --section-bg: rgba(69,71,90,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #toolbar { position: fixed; top: 0; left: 0; right: 0; height: 44px; display: flex;
+    align-items: center; gap: 10px; padding: 0 14px; background: var(--panel);
+    border-bottom: 1px solid var(--border); z-index: 10; font-size: 13px; }
+  #toolbar .title { font-weight: 600; color: var(--accent); }
+  #toolbar .meta { color: var(--muted); font-size: 12px; }
+  #toolbar button { background: var(--node-bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px; }
+  #toolbar button:hover { border-color: var(--accent); }
+  #toolbar .spacer { flex: 1; }
+  #stage { position: absolute; inset: 44px 0 0 0; cursor: grab; }
+  #stage.dragging { cursor: grabbing; }
+  #stage svg { display: block; }
+  .node rect { fill: var(--node-bg); stroke: var(--node-border); stroke-width: 1.5; rx: 8; }
+  .node text { fill: var(--text); font-size: 14px; }
+  .node.image rect, .node.svg rect, .node.media rect, .node.referenceblock rect { stroke-dasharray: 4 3; }
+  .node.connectpoint ellipse { fill: #585b70; stroke: #cdd6f4; }
+  .node.penstroke path { stroke: var(--node-border); stroke-width: 2; fill: none; stroke-linecap: round; }
+  .edge path { stroke: var(--edge); stroke-width: 1.5; fill: none; }
+  .edge text { fill: var(--muted); font-size: 12px; }
+  .edge.multi path { stroke-dasharray: 6 4; }
+  .section > rect { fill: var(--section-bg); stroke: var(--section-border); stroke-width: 1.5;
+    stroke-dasharray: 8 4; rx: 12; }
+  .section > text { fill: var(--muted); font-size: 13px; font-weight: 600; }
+  #hint { position: fixed; bottom: 12px; left: 14px; color: var(--muted); font-size: 12px; z-index: 5; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <span class="title">ProjectGraph 查看器</span>
+  <span class="meta" id="meta"></span>
+  <span class="spacer"></span>
+  <button onclick="zoomBy(1.25)">放大</button>
+  <button onclick="zoomBy(0.8)">缩小</button>
+  <button onclick="resetView()">适应视图</button>
+</div>
+<div id="stage"><svg id="svg"></svg></div>
+<div id="hint">拖拽平移 · 滚轮缩放</div>
+<script>
+const DATA = {"meta":{"source":"HyperZoneLogin-architecture.prg","version":"2.7.0","generated":"2026-10-24T23:19:20.750Z"},"nodes":[{"type":"TextNode","uuid":"da499ba4-9056-4928-a440-8b815e6302c8","label":"HyperZoneLogin · 插件工作架构与登录流程\nVelocity 多渠道认证框架（离线 / Yggdrasil / Floodgate）\n26.10.1-SNAPSHOT · Velocity 4.1 · JDK 25 · Paper 26.x","x":388,"y":0,"w":504,"h":88,"color":{"_":"Color","r":43,"g":43,"b":51,"a":1}},{"type":"TextNode","uuid":"ce04b512-0493-4e1c-b298-b7de698f8267","label":"图例（节点底色）\n蓝 = 入口 / 网络注入    靛 = 编排核心    紫 = 认证渠道\n紫红 = 密码门 / 凭证    青 = 档案 / 数据    棕 = 等待区\n绿 = 放行 / 游戏区      灰 = 支撑体系      橄榄 = 外围模块","x":377.5,"y":148,"w":525,"h":106,"color":{"_":"Color","r":43,"g":43,"b":51,"a":1}},{"type":"TextNode","uuid":"1a76c359-3248-48b6-b43f-59963556de6b","label":"Minecraft 客户端\n· Java 版：正版 / 离线登录\n· 基岩版：Floodgate 前缀名","x":508.5,"y":334,"w":263,"h":88,"color":{"_":"Color","r":31,"g":59,"b":87,"a":1}},{"type":"TextNode","uuid":"43d87214-99f8-4dea-915a-e5e81c322728","label":"Velocity 代理启动装配\nHyperZoneLoginBootstrap → HyperZoneLoginMain.onEnable\n· 读 start.conf（ready / format / language）\n· 读 core.conf（database · vServer · auth · modules …）\n· 初始化数据库与服务，绑定各 Provider\n· 注册内置 / 外部模块 + 全部核心监听器","x":382,"y":552,"w":516,"h":142,"color":{"_":"Color","r":31,"g":59,"b":87,"a":1}},{"type":"TextNode","uuid":"9dc9ca2d-953a-4dc7-8440-d5d7a53f9470","label":"Netty 登录注入（inject.network）\nNettyLoginSessionHandler\n· PreLoginEvent → OpenPreLoginEvent\n   （safe 风控 · offline 改写 onlineMode）\n· 加密握手 → OpenStartAuthEvent\n   （Yggd 提前握手 / Floodgate 解析身份）","x":441,"y":824,"w":398,"h":142,"color":{"_":"Color","r":31,"g":59,"b":87,"a":1}},{"type":"TextNode","uuid":"756e640f-68a2-464d-b817-83185b9bcab6","label":"初始 GameProfile 校验\nLoginVerifyListener → VerifyInitialGameProfileEvent .join()\n· pass=false ⇒ 断开（防插件冲突 / 伪造 GameProfile）\n· 已 attach 且语义一致 ⇒ 放行初始档案","x":364,"y":1096,"w":552,"h":106,"color":{"_":"Color","r":31,"g":59,"b":87,"a":1}},{"type":"TextNode","uuid":"f3c15514-8d12-43af-a1ac-9add6a59f6a9","label":"LoginManager.dispatch 编排\nHyperZoneCredentialFlow · 默认 12s 超时\n· fire LoginHandleRequestEvent（各模块 claim）\n· 密码门等待中跳过超时（awaitingPlayerInput）","x":424,"y":1332,"w":432,"h":106,"color":{"_":"Color","r":42,"g":47,"b":79,"a":1}},{"type":"TextNode","uuid":"d003bbcb-8aac-478b-92bc-04689d0abb28","label":"并行 claim 竞速（runClaims）\n各模块 claim(moduleId, handler) 并行执行\n· 首个 success 且 hasAttachedProfile ⇒ SUCCESS\n· cancelSignal 取消其余；全部失败 ⇒ ALL_FAILED","x":419.5,"y":1568,"w":441,"h":106,"color":{"_":"Color","r":42,"g":47,"b":79,"a":1}},{"type":"TextNode","uuid":"95e16867-6d78-4d49-b48f-b04b018660bf","label":"auth-offline\nhzl-auth-offline · channel=offline\n兜底渠道（priority 0）\n· /register /login /changepassword\n· 密码哈希 · TOTP · 邮箱找回 · 短会话\n· OfflineChannelPasswordGate","x":51,"y":1804,"w":353,"h":142,"color":{"_":"Color","r":61,"g":42,"b":68,"a":1}},{"type":"TextNode","uuid":"0595ba48-8805-4b5a-8553-903751811528","label":"auth-yggd\nhzl-auth-yggd · channel=yggdrasil\n· OpenStartAuthEvent 即开始远端握手\n· 先查库内 entry，再回退全部 entry\n· 凭证 displayChannelId = entryId","x":460,"y":1804,"w":338,"h":124,"color":{"_":"Color","r":61,"g":42,"b":68,"a":1}},{"type":"TextNode","uuid":"2a0a94cd-a4cd-4d22-bfc3-535d999cc04b","label":"auth-floodgate\nhzl-auth-floodgate · channel=floodgate\n（需已安装 floodgate）\n· 解析 Bedrock xuid 与正确大小写名\n· VerifyInitialGameProfile ⇒ pass=true\n· LAST 改写 LoginProfileReplaceEvent","x":854,"y":1804,"w":375,"h":142,"color":{"_":"Color","r":61,"g":42,"b":68,"a":1}},{"type":"TextNode","uuid":"ae048895-2805-4bf4-84fa-a2f6135c95ed","label":"密码门 ChannelPasswordGate\nNEEDS_REGISTER / NEEDS_LOGIN（等待区内延迟）\n· resolveGate：① 正在拦截 ② 凭证渠道 ③ priority\n· 通过后由模块提交凭证，核心统一核验","x":409.5,"y":2076,"w":461,"h":106,"color":{"_":"Color","r":66,"g":43,"b":63,"a":1}},{"type":"TextNode","uuid":"7925e0c4-a979-471c-b8d7-3e46ca5c465e","label":"凭证提交与核验\nHyperZoneCredential：channelId / credentialId\ngetBoundProfileId · getRegistrationName · validateBind · bind\n· 核心 submitCredential + overVerify\n· 模块原则上不在 claim 内自行 attach","x":360,"y":2312,"w":560,"h":124,"color":{"_":"Color","r":66,"g":43,"b":63,"a":1}},{"type":"TextNode","uuid":"d338c823-f4e6-46c4-83a3-20c96a6a23ab","label":"Profile 落库并 attach\nVelocityHyperZoneProfileService\n· attachVerifiedCredentialProfile：取唯一 bound profileId\n   0 个 ⇒ VERIFIED_UNBOUND（继续留在等待区）\n· attachProfile → fire ProfileAttachedEvent（唯一信号点）","x":374.5,"y":2566,"w":531,"h":124,"color":{"_":"Color","r":34,"g":58,"b":58,"a":1}},{"type":"TextNode","uuid":"dcdf4abb-996a-4533-9b6f-cbf74a7f526c","label":"tryLeaveWaiting 放行闸门\n必须 hasAttachedProfile + profile 独占\n· 同 profile 已在游戏区 ⇒ PROFILE_CONFLICT_SELF / OTHER\n· markWaitingAreaLeavePending(VERIFIED)\n· serverAdapter.onVerified(player)","x":382.5,"y":2820,"w":515,"h":124,"color":{"_":"Color","r":69,"g":58,"b":28,"a":1}},{"type":"TextNode","uuid":"f31b6ff2-1724-4c3a-a56c-0923ce54ffff","label":"outpre 等待区适配器\nOutPreVServerAuth : HyperZoneVServerAdapter\n· struck 直通 / Bridge 桥接真实认证服\n· isPlayerInWaitingArea = inAuthHold || 未连认证服 …\n· 认证后重建 GameProfileRequestEvent → 连目标服","x":125.5,"y":3074,"w":490,"h":124,"color":{"_":"Color","r":69,"g":58,"b":28,"a":1}},{"type":"TextNode","uuid":"f2420001-f8dd-4579-a520-e8ab7abb1cb3","label":"backend 等待区适配器\nBackendAuthHoldListener\n· 初始服强制 authServer 扣留 + 暂停消息投递\n· ServerPreConnect 闸门：MUST_VERIFY_BEFORE_TRANSFER\n· /exit → exitWaitingArea(EXIT_REQUEST)","x":671.5,"y":3074,"w":483,"h":124,"color":{"_":"Color","r":69,"g":58,"b":28,"a":1}},{"type":"TextNode","uuid":"639f4f97-eef0-4755-b8b1-c47f0931d025","label":"远端登录包改写 + 皮肤\nServerLoginSuccessEvent.rewritePacket = true\n· uuid / username / properties（textures 注入）\n· profile-skin self-replay：ADD_PLAYER 自见皮肤","x":419.5,"y":3328,"w":441,"h":106,"color":{"_":"Color","r":42,"g":59,"b":42,"a":1}},{"type":"TextNode","uuid":"e546e89f-1d8c-4fe5-9ad3-b675f28b7936","label":"进入游戏区（GAME）\nPlayerAreaLifecycleListener\n· WaitingAreaLeave → GameAreaEnter(VERIFIED)\n· area 四事件仅提示，禁止驱动状态机 / 放行","x":427,"y":3564,"w":426,"h":106,"color":{"_":"Color","r":42,"g":59,"b":42,"a":1}},{"type":"TextNode","uuid":"d3867fa1-4edf-4d29-a874-a2cb7d344830","label":"关键设计约束（AGENT.MD）\n· 状态机严格区分 resolve（已有 profileId）/ create（registrationName），禁止模糊入口\n· clientOriginalName（不可信原始名）≠ registrationName（待建档注册名）\n· 等待区禁止改名 / 重 UUID；已落库绑定关系不得静默改写\n· 离开等待区必须同时满足：认证已通过 + 正式 Profile 已 attach\n· 面向玩家的消息一律走 i18n（en_us / zh_cn / ru_ru）","x":269,"y":3790,"w":742,"h":142,"color":{"_":"Color","r":43,"g":43,"b":51,"a":1}},{"type":"TextNode","uuid":"603be6f2-9d08-41e9-beb2-45386ba3db5a","label":"配置与 i18n\nstart.conf（ready / format / language）→ core.conf\ncore：database · vServer · auth · modules · messages …\nmessages/\u003cns>/{en_us,zh_cn,ru_ru}.conf\n· 缺键渲染 \"Missing message\" ⇒ 模块 hasKey 兜底","x":1430,"y":552,"w":509,"h":124,"color":{"_":"Color","r":38,"g":48,"b":63,"a":1}},{"type":"TextNode","uuid":"34b1fef5-cf9d-4141-81e1-dc2d28a3fcc1","label":"外围模块（事件驱动）\nsafe：OpenPreLoginEvent 限流 / 异常名 / 冷却 / 并发\nprofile-skin：MineSkin 修复 + 缓存 + 自见皮肤\ndata-merge：/hzl-merge ml|am 迁移\nbackend-nanolimbo：outpre 内置 limbo 后端","x":1430,"y":824,"w":471,"h":124,"color":{"_":"Color","r":51,"g":54,"b":31,"a":1}},{"type":"TextNode","uuid":"5842a9f9-e307-4813-a534-5b7afe055771","label":"模块体系：可内置 · 可独立\nHyperSubModule { credentialChannelIds; register(api) }\nEmbeddedModuleRegistry：反射类名 + requiredPluginIds\n· modules.conf 开关；外部 hzl-* 已装则跳过内置\n· monolith 内置 / 拆分分发 HZL-*.jar","x":1430,"y":1568,"w":502,"h":124,"color":{"_":"Color","r":38,"g":48,"b":63,"a":1}},{"type":"TextNode","uuid":"ee444238-72ef-44c9-9a72-15d84c763bf7","label":"API 契约层 cn.starfallplain.sfplogin.api（1.0.0）\nHyperZoneApi + 一系列 Provider 单例\n· CredentialFlow / ProfileService\n· CredentialChannelRegistry / PasswordGateRegistry\n· MessageService / DatabaseManager / VServerAdapter","x":1430,"y":2312,"w":477,"h":124,"color":{"_":"Color","r":38,"g":48,"b":63,"a":1}},{"type":"TextNode","uuid":"b6e8e83a-4a2e-4a8f-80b3-14e3dd9bc9ee","label":"数据层\nDatabaseHelper：SQLITE / MYSQL / MARIADB（H2 已移除）\n· profile（id / name / uuid）\n· offline_auth / entry_\u003cid> / floodgate_auth\n· skin_cache + skin_profile / binding_code","x":1430,"y":2566,"w":490,"h":124,"color":{"_":"Color","r":38,"g":48,"b":63,"a":1}},{"type":"TextNode","uuid":"8609ca34-0da8-4f70-a3fc-81e278aa685e","label":"构建 · 分发 · 开发工具\nmonolithJar → build/HZL/*-all.jar（dist/ 已就位）\n拆分版本 HZL-*.jar；CTD 变体 src/ctd 兼容层\ncli：easydeploy 一键部署 velocity/auth/play\nvc-runtest：child-first 侧载热调，不换 jar","x":1430,"y":3564,"w":465,"h":124,"color":{"_":"Color","r":38,"g":48,"b":63,"a":1}}],"sections":[{"type":"Section","uuid":"e977ca05-d7e9-4b6f-b425-0b239d3734c0","label":"① 启动装配与登录入口","x":314,"y":284,"w":652,"h":958,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["1a76c359-3248-48b6-b43f-59963556de6b","43d87214-99f8-4dea-915a-e5e81c322728","9dc9ca2d-953a-4dc7-8440-d5d7a53f9470","756e640f-68a2-464d-b817-83185b9bcab6"]},{"type":"Section","uuid":"7e25f0b7-092d-4bb8-b145-9c3dd499115c","label":"② 认证编排核心（LoginManager）","x":314,"y":1282,"w":652,"h":432,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["f3c15514-8d12-43af-a1ac-9add6a59f6a9","d003bbcb-8aac-478b-92bc-04689d0abb28"]},{"type":"Section","uuid":"9ce602e9-ce31-4c79-bc70-8339ca75e39b","label":"③ 认证渠道模块 · 并行 claim（三选一）","x":5,"y":1754,"w":1270,"h":232,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["95e16867-6d78-4d49-b48f-b04b018660bf","0595ba48-8805-4b5a-8553-903751811528","2a0a94cd-a4cd-4d22-bfc3-535d999cc04b"]},{"type":"Section","uuid":"e5b7e850-31fc-4dd3-838e-7049dda32ac3","label":"④ 密码门 → 凭证 → Profile attach → 放行闸门","x":314,"y":2026,"w":652,"h":958,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["ae048895-2805-4bf4-84fa-a2f6135c95ed","7925e0c4-a979-471c-b8d7-3e46ca5c465e","d338c823-f4e6-46c4-83a3-20c96a6a23ab","dcdf4abb-996a-4533-9b6f-cbf74a7f526c"]},{"type":"Section","uuid":"ef729286-cf11-4004-a6fe-7f05fa5f8d6a","label":"⑤ 等待区适配器 → 登录包改写 → 游戏区","x":79.5,"y":3024,"w":1121,"h":686,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["f31b6ff2-1724-4c3a-a56c-0923ce54ffff","f2420001-f8dd-4579-a520-e8ab7abb1cb3","639f4f97-eef0-4755-b8b1-c47f0931d025","e546e89f-1d8c-4fe5-9ad3-b675f28b7936"]},{"type":"Section","uuid":"07ce7a1d-43eb-4e03-ab15-0746eb36ebec","label":"支撑体系（契约 · 数据 · 配置 · 外围模块 · 构建）","x":1384,"y":502,"w":601,"h":3226,"color":{"_":"Color","r":0,"g":0,"b":0,"a":0},"children":["5842a9f9-e307-4813-a534-5b7afe055771","ee444238-72ef-44c9-9a72-15d84c763bf7","b6e8e83a-4a2e-4a8f-80b3-14e3dd9bc9ee","603be6f2-9d08-41e9-beb2-45386ba3db5a","34b1fef5-cf9d-4141-81e1-dc2d28a3fcc1","8609ca34-0da8-4f70-a3fc-81e278aa685e"]}],"edges":[{"type":"LineEdge","uuid":"9dbcf4d0-a8f4-45d9-b7b3-9d13485b4305","label":"","from":"1a76c359-3248-48b6-b43f-59963556de6b","to":"43d87214-99f8-4dea-915a-e5e81c322728"},{"type":"LineEdge","uuid":"64c5d7bb-f7ae-4488-88e1-49888420e116","label":"","from":"43d87214-99f8-4dea-915a-e5e81c322728","to":"9dc9ca2d-953a-4dc7-8440-d5d7a53f9470"},{"type":"LineEdge","uuid":"4a06dc0e-c32a-457e-a694-8d304a42dcc2","label":"","from":"9dc9ca2d-953a-4dc7-8440-d5d7a53f9470","to":"756e640f-68a2-464d-b817-83185b9bcab6"},{"type":"LineEdge","uuid":"6cd03771-690a-4c72-a446-fde712ca80de","label":"","from":"756e640f-68a2-464d-b817-83185b9bcab6","to":"f3c15514-8d12-43af-a1ac-9add6a59f6a9"},{"type":"LineEdge","uuid":"3bb228f8-0708-4a4a-9471-0f0aaed51c68","label":"","from":"f3c15514-8d12-43af-a1ac-9add6a59f6a9","to":"d003bbcb-8aac-478b-92bc-04689d0abb28"},{"type":"LineEdge","uuid":"45ecc4cc-e956-44bb-ac7d-68f803608233","label":"","from":"d003bbcb-8aac-478b-92bc-04689d0abb28","to":"95e16867-6d78-4d49-b48f-b04b018660bf"},{"type":"LineEdge","uuid":"edb424cb-633a-4d55-9e07-f151eee35de1","label":"","from":"d003bbcb-8aac-478b-92bc-04689d0abb28","to":"0595ba48-8805-4b5a-8553-903751811528"},{"type":"LineEdge","uuid":"22673671-f437-47f5-a708-cc789fae7e5b","label":"","from":"d003bbcb-8aac-478b-92bc-04689d0abb28","to":"2a0a94cd-a4cd-4d22-bfc3-535d999cc04b"},{"type":"LineEdge","uuid":"dc2acea5-e9f1-457d-acb9-ebf0b77d9636","label":"","from":"95e16867-6d78-4d49-b48f-b04b018660bf","to":"ae048895-2805-4bf4-84fa-a2f6135c95ed"},{"type":"LineEdge","uuid":"f1708a3d-7d0a-42f3-b6fb-5ca552e53d67","label":"","from":"0595ba48-8805-4b5a-8553-903751811528","to":"ae048895-2805-4bf4-84fa-a2f6135c95ed"},{"type":"LineEdge","uuid":"1149ce7d-a7e8-45a9-a5e6-1b2d1fa3bf3c","label":"","from":"2a0a94cd-a4cd-4d22-bfc3-535d999cc04b","to":"ae048895-2805-4bf4-84fa-a2f6135c95ed"},{"type":"LineEdge","uuid":"3a26970e-85e3-46fb-9f54-7cfedb46d6cc","label":"","from":"ae048895-2805-4bf4-84fa-a2f6135c95ed","to":"7925e0c4-a979-471c-b8d7-3e46ca5c465e"},{"type":"LineEdge","uuid":"b627f065-f9c1-4100-8029-3f1c7703af8f","label":"","from":"7925e0c4-a979-471c-b8d7-3e46ca5c465e","to":"d338c823-f4e6-46c4-83a3-20c96a6a23ab"},{"type":"LineEdge","uuid":"c6a7337b-87cc-4c79-904f-4ae587074bb7","label":"","from":"d338c823-f4e6-46c4-83a3-20c96a6a23ab","to":"dcdf4abb-996a-4533-9b6f-cbf74a7f526c"},{"type":"LineEdge","uuid":"292def9a-79dc-4631-83e7-051f16236166","label":"","from":"dcdf4abb-996a-4533-9b6f-cbf74a7f526c","to":"f31b6ff2-1724-4c3a-a56c-0923ce54ffff"},{"type":"LineEdge","uuid":"449a2a38-bf2a-47f6-982b-4e82ab63e408","label":"","from":"dcdf4abb-996a-4533-9b6f-cbf74a7f526c","to":"f2420001-f8dd-4579-a520-e8ab7abb1cb3"},{"type":"LineEdge","uuid":"b575cd40-75b9-46cb-ab01-9ad432a323a7","label":"","from":"f31b6ff2-1724-4c3a-a56c-0923ce54ffff","to":"639f4f97-eef0-4755-b8b1-c47f0931d025"},{"type":"LineEdge","uuid":"701c22cb-860b-4dbb-86a8-f086521462ca","label":"","from":"f2420001-f8dd-4579-a520-e8ab7abb1cb3","to":"639f4f97-eef0-4755-b8b1-c47f0931d025"},{"type":"LineEdge","uuid":"16f18e24-4d5b-4926-9c88-efe4d871faec","label":"","from":"639f4f97-eef0-4755-b8b1-c47f0931d025","to":"e546e89f-1d8c-4fe5-9ad3-b675f28b7936"},{"type":"LineEdge","uuid":"57489107-98a9-4229-8f47-f4e4d768a351","label":"读取配置","from":"43d87214-99f8-4dea-915a-e5e81c322728","to":"603be6f2-9d08-41e9-beb2-45386ba3db5a"},{"type":"LineEdge","uuid":"8a2c2be4-1bcb-46ff-a824-5f8c797aed3d","label":"订阅入口事件","from":"34b1fef5-cf9d-4141-81e1-dc2d28a3fcc1","to":"9dc9ca2d-953a-4dc7-8440-d5d7a53f9470"},{"type":"LineEdge","uuid":"4953682d-1481-4568-8889-6ac5a21eac8b","label":"写入 profile / 绑定表","from":"d338c823-f4e6-46c4-83a3-20c96a6a23ab","to":"b6e8e83a-4a2e-4a8f-80b3-14e3dd9bc9ee"},{"type":"LineEdge","uuid":"5e3c511d-3afe-4f7c-a652-16a1d8466842","label":"注册 claim","from":"5842a9f9-e307-4813-a534-5b7afe055771","to":"d003bbcb-8aac-478b-92bc-04689d0abb28"},{"type":"LineEdge","uuid":"a3c3b755-7e5d-4cc6-9147-ec3b7fd7123e","label":"接口契约","from":"ee444238-72ef-44c9-9a72-15d84c763bf7","to":"7925e0c4-a979-471c-b8d7-3e46ca5c465e"}]};
+const svg = document.getElementById('svg');
+const NS = 'http://www.w3.org/2000/svg';
+let view = { x: 0, y: 0, k: 1 };
+
+document.getElementById('meta').textContent =
+  (DATA.meta.version ? 'v' + DATA.meta.version + ' · ' : '') +
+  DATA.nodes.length + ' 节点 · ' + DATA.sections.length + ' 分组 · ' + DATA.edges.length + ' 边';
+
+const uuidToNode = new Map();
+DATA.nodes.forEach(n => uuidToNode.set(n.uuid, n));
+DATA.sections.forEach(s => { s.children.forEach(cid => { if (!uuidToNode.has(cid)) uuidToNode.set(cid, {uuid: cid, w:100,h:40,x:s.x,y:s.y}); }); });
+
+const world = document.createElementNS(NS, 'g');
+svg.appendChild(world);
+
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  (parent || world).appendChild(e);
+  return e;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function centerOf(n) { return { x: n.x + (n.w||100)/2, y: n.y + (n.h||40)/2 }; }
+function colorFill(c) { return (c && c.a > 0) ? 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')' : null; }
+
+for (const s of DATA.sections) {
+  const g = el('g', { class: 'section' });
+  el('rect', { x: s.x, y: s.y, width: Math.max(s.w, 10), height: Math.max(s.h, 10) }, g);
+  const t = el('text', { x: s.x + 10, y: s.y + 22 }, g);
+  t.textContent = esc(s.label || '分组');
+}
+
+const defs = el('defs', {});
+const marker = el('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5,
+  markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+el('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#6c7086' }, marker);
+
+for (const e of DATA.edges) {
+  if (e.type === 'MultiTargetUndirectedEdge') {
+    let cx = 0, cy = 0, n = 0;
+    for (const tid of (e.targets || [])) {
+      const t = uuidToNode.get(tid);
+      if (!t) continue;
+      const c = centerOf(t); cx += c.x; cy += c.y; n++;
+    }
+    if (n === 0) continue;
+    cx /= n; cy /= n;
+    const g = el('g', { class: 'edge multi' });
+    for (const tid of (e.targets || [])) {
+      const t = uuidToNode.get(tid);
+      if (!t) continue;
+      const c = centerOf(t);
+      el('path', { d: 'M ' + cx + ' ' + cy + ' L ' + c.x + ' ' + c.y }, g);
+    }
+    if (e.label) {
+      const t = el('text', { x: cx + 8, y: cy - 8 }, g);
+      t.textContent = esc(e.label);
+    }
+    continue;
+  }
+  const a = uuidToNode.get(e.from);
+  const b = uuidToNode.get(e.to);
+  if (!a || !b) continue;
+  const p1 = centerOf(a), p2 = centerOf(b);
+  const g = el('g', { class: 'edge' });
+  let d, mid;
+  if (e.type === 'ArcEdge' && e.offset) {
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const px = -dy / len, py = dx / len;
+    const cxp = mx + px * e.offset, cyp = my + py * e.offset;
+    d = 'M ' + p1.x + ' ' + p1.y + ' Q ' + cxp + ' ' + cyp + ' ' + p2.x + ' ' + p2.y;
+    mid = { x: 0.25*p1.x + 0.5*cxp + 0.25*p2.x, y: 0.25*p1.y + 0.5*cyp + 0.25*p2.y };
+  } else {
+    d = 'M ' + p1.x + ' ' + p1.y + ' L ' + p2.x + ' ' + p2.y;
+    mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  }
+  el('path', { d: d, 'marker-end': 'url(#arrow)' }, g);
+  if (e.label) {
+    const t = el('text', { x: mid.x, y: mid.y - 6, 'text-anchor': 'middle' }, g);
+    t.textContent = esc(e.label);
+  }
+}
+
+for (const n of DATA.nodes) {
+  const g = el('g', { class: 'node ' + (n.type || '').toLowerCase() });
+  const fill = colorFill(n.color);
+  const w = Math.max(n.w || 100, 10), h = Math.max(n.h || 40, 10);
+  if (n.type === 'ConnectPoint') {
+    el('ellipse', { cx: n.x + w/2, cy: n.y + h/2, rx: 15, ry: 15 }, g);
+  } else if (n.type === 'PenStroke') {
+    const pts = n.points || [];
+    if (pts.length > 1) {
+      const d = 'M ' + pts.map(p => p[0] + ' ' + p[1]).join(' L ');
+      el('path', { d: d, stroke: fill || '#585b70' }, g);
+    }
+  } else {
+    el('rect', { x: n.x, y: n.y, width: w, height: h,
+      fill: fill || 'var(--node-bg)', stroke: 'rgba(255,255,255,0.25)' }, g);
+    if (n.image) {
+      el('image', { x: n.x + 2, y: n.y + 2, width: w - 4, height: h - 4,
+        href: n.image, preserveAspectRatio: 'xMidYMid meet' }, g);
+    } else if (n.svg) {
+      el('image', { x: n.x + 2, y: n.y + 2, width: w - 4, height: h - 4,
+        href: n.svg, preserveAspectRatio: 'xMidYMid meet' }, g);
+    } else if (n.label) {
+      const lines = String(n.label).split('\n');
+      lines.forEach((line, i) => {
+        const t = el('text', { x: n.x + 12, y: n.y + 24 + i * 18 }, g);
+        t.textContent = esc(line);
+      });
+    }
+    if (n.type === 'MediaNode') {
+      const t = el('text', { x: n.x + 12, y: n.y + 24 }, g);
+      t.textContent = (n.mediaKind === 'audio' ? '♪ ' : '▶ ') + esc(n.label || '媒体');
+    }
+    if (n.type === 'ReferenceBlockNode') {
+      const t = el('text', { x: n.x + 12, y: n.y + 24 }, g);
+      t.textContent = '引用: ' + esc(n.fileName || '');
+    }
+    if (n.type === 'ExtensionEntity') {
+      const t = el('text', { x: n.x + 12, y: n.y + 24 }, g);
+      t.textContent = esc(n.typeName || '扩展');
+    }
+  }
+  const title = el('title', {}, g);
+  title.textContent = (n.type || '') + ' · ' + (n.label || n.uuid || '');
+}
+
+function contentBBox() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const all = DATA.nodes.concat(DATA.sections);
+  for (const n of all) {
+    if (n.type === 'PenStroke') {
+      for (const p of (n.points || [])) {
+        minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]);
+        maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]);
+      }
+      continue;
+    }
+    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + (n.w || 100)); maxY = Math.max(maxY, n.y + (n.h || 40));
+  }
+  if (!isFinite(minX)) return { x: 0, y: 0, w: 800, h: 600 };
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+function resetView() {
+  const b = contentBBox();
+  const rect = document.getElementById('stage').getBoundingClientRect();
+  const k = Math.min((rect.width - 60) / Math.max(b.w, 1), (rect.height - 60) / Math.max(b.h, 1), 2);
+  view.k = k;
+  view.x = (rect.width - b.w * k) / 2 - b.x * k;
+  view.y = (rect.height - b.h * k) / 2 - b.y * k;
+  applyView();
+}
+function zoomBy(f) {
+  const rect = document.getElementById('stage').getBoundingClientRect();
+  const cx = rect.width / 2, cy = rect.height / 2;
+  const k2 = view.k * f;
+  view.x = cx - (cx - view.x) * (k2 / view.k);
+  view.y = cy - (cy - view.y) * (k2 / view.k);
+  view.k = k2;
+  applyView();
+}
+function applyView() {
+  world.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')');
+}
+const stage = document.getElementById('stage');
+let drag = null;
+stage.addEventListener('mousedown', (e) => {
+  drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+  stage.classList.add('dragging');
+});
+window.addEventListener('mousemove', (e) => {
+  if (!drag) return;
+  view.x = drag.vx + (e.clientX - drag.x);
+  view.y = drag.vy + (e.clientY - drag.y);
+  applyView();
+});
+window.addEventListener('mouseup', () => { drag = null; stage.classList.remove('dragging'); });
+stage.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = stage.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const f = e.deltaY < 0 ? 1.1 : 0.9;
+  const k2 = view.k * f;
+  view.x = mx - (mx - view.x) * (k2 / view.k);
+  view.y = my - (my - view.y) * (k2 / view.k);
+  view.k = k2;
+  applyView();
+}, { passive: false });
+
+window.addEventListener('resize', () => { svg.setAttribute('width', stage.clientWidth); svg.setAttribute('height', stage.clientHeight); });
+svg.setAttribute('width', stage.clientWidth);
+svg.setAttribute('height', stage.clientHeight);
+resetView();
+applyView();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 name: Bug 反馈
-description: 报告 HyperZoneLogin 中可复现的问题，请尽量一次性补全环境、日志与配置信息。
+description: 报告 SFP-login 中可复现的问题，请尽量一次性补全环境、日志与配置信息。
 title: "[Bug]: "
 labels:
   - bug
@@ -29,7 +29,7 @@ body:
   - type: input
     id: hzl-version
     attributes:
-      label: HyperZoneLogin 主插件版本
+      label: SFP-login 主插件版本
       description: 例如 `1.0.0-SNAPSHOT`、weekly 版本号或具体 commit
       placeholder: 例如 1.0.0-SNAPSHOT / weekly-2026.W15
     validations:
@@ -41,7 +41,7 @@ body:
       label: 已安装模块及版本
       description: 请列出已安装的 `auth-yggd`、`auth-offline`、`data-merge`、`profile-skin` 等模块版本
       placeholder: |
-        HyperZoneLogin-1.0.0-SNAPSHOT
+        SFP-login-1.0.0-SNAPSHOT
         HZL-auth-yggd-1.0.0-SNAPSHOT
         HZL-auth-offline-1.0.0-SNAPSHOT
     validations:

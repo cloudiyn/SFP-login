@@ -1,0 +1,86 @@
+/*
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
+ *
+ * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
+ * Copyright (C) contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+package cn.starfallplain.sfplogin.inject.network.netty.replacer
+
+import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
+import cn.starfallplain.sfplogin.api.event.profile.ServerLoginSuccessEvent
+import cn.starfallplain.sfplogin.api.log.HyperZoneDebugType
+import cn.starfallplain.sfplogin.api.log.debug
+import cn.starfallplain.sfplogin.api.log.error
+import cn.starfallplain.sfplogin.SFPLoginMain
+import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
+import io.netty.channel.Channel
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.ChannelOutboundHandlerAdapter
+import io.netty.channel.ChannelPromise
+
+class ServerLoginSuccessPacketReplacer(
+    private val channel: Channel
+) : ChannelOutboundHandlerAdapter() {
+
+    override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
+        try {
+            if (msg !is ServerLoginSuccessPacket) {
+                super.write(ctx, msg, promise)
+                return
+            }
+
+            val hyperPlayer = runCatching {
+                HyperZonePlayerManager.getByChannel(channel)
+            }.getOrNull()
+
+            if (hyperPlayer == null) {
+                debug(HyperZoneDebugType.NETWORK_REWRITE) {
+                    "[ProfileSkinFlow] login success passthrough: no hyper player for channel=$channel"
+                }
+                super.write(ctx, msg, promise)
+                return
+            }
+
+            val event = ServerLoginSuccessEvent(
+                hyperZonePlayer = hyperPlayer,
+                currentUuid = msg.uuid,
+                currentUsername = msg.username,
+                currentProperties = msg.properties
+            )
+            SFPLoginMain.getInstance().proxy.eventManager.fire(event).join()
+
+            if (event.rewritePacket) {
+                msg.uuid = event.uuid
+                msg.username = event.username
+                msg.properties = event.properties
+            }
+
+            ctx.pipeline().remove(this)
+            super.write(ctx, msg, promise)
+        } catch (throwable: Throwable) {
+            error(throwable) { "ServerLoginSuccessPacketReplacer write failed: ${throwable.message}" }
+            try {
+                ctx.fireExceptionCaught(throwable)
+            } catch (_: Throwable) {
+                // ignore
+            }
+        }
+    }
+
+
+}

@@ -3,12 +3,12 @@ Auth Offline 模块 (hzl-auth-offline)
 
 目的
 ----
-本模块为 HyperZoneLogin 提供「本地/离线」账号管理：支持玩家通过服务器内部存储的账号进行注册、登录、修改密码以及注销等操作；当玩家已通过其他渠道拥有档案时，`/register` 会自动尝试完成离线密码绑定。适用于不连接 Mojang/Yggdrasil 或需要额外本地账号的环境。
+本模块为 SFP-login 提供「本地/离线」账号管理：支持玩家通过服务器内部存储的账号进行注册、登录、修改密码以及注销等操作；当玩家已通过其他渠道拥有档案时，`/register` 会自动尝试完成离线密码绑定。适用于不连接 Mojang/Yggdrasil 或需要额外本地账号的环境。
 
 如何使用（运行时集成，*不包含构建步骤*）
 -----------------------------------
 - 将本模块作为单独的 Velocity 插件放入 `plugins/` 文件夹（插件 id 为 `hzl-auth-offline`）。
-- 在运行时，本模块会检测主插件 `hyperzonelogin` 是否存在；若存在会直接调用主插件的 API：`HyperZoneLoginMain.getInstance().registerModule(OfflineSubModule())` 完成集成。
+- 在运行时，本模块会检测主插件 `sfplogin` 是否存在；若存在会直接调用主插件的 API：`SFPLoginMain.getInstance().registerModule(OfflineSubModule())` 完成集成。
 - 本模块依赖主插件在运行时提供的 API（`api` 项目由 `velocity` 模块在运行时提供），因此必须确保主插件已加载。
 
 主要功能与技术细节

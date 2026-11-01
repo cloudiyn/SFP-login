@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -34,8 +34,8 @@ repositories {
 gradlePlugin {
     plugins {
         create("hzlRuntimeDependencies") {
-            id = "icu.h2l.runtime-dependencies"
-            implementationClass = "icu.h2l.gradle.HzlRuntimeDependenciesPlugin"
+            id = "cn.starfallplain.sfplogin.runtime-dependencies"
+            implementationClass = "cn.starfallplain.sfplogin.gradle.HzlRuntimeDependenciesPlugin"
         }
     }
 }

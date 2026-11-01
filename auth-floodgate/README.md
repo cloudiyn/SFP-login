@@ -9,7 +9,7 @@ Auth Floodgate 模块 (`hzl-auth-floodgate`)
 
 运行时行为
 ----------
-- 依赖主插件 `hyperzonelogin` 提供 API。
+- 依赖主插件 `sfplogin` 提供 API。
 - 仅在代理已安装 `floodgate` 插件时注册模块；若未安装，则自动跳过，不启用任何相关监听。
 - 单文件版中也支持内置加载：若 `modules.conf` 中 `authFloodgate=true` 且检测到 `floodgate`，则会自动启用内置版本。
 - 模块会在数据目录生成 `floodgate-auth.conf`；其中 `stripUsernamePrefix=true` 默认开启，用于自动去除 Floodgate API 当前配置的玩家名前缀。

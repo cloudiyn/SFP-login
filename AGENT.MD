@@ -1,10 +1,10 @@
-# HyperZoneLogin Agent Rules
+# SFP-login Agent Rules
 
-本文件记录 HyperZoneLogin 登录链路的强制工程规范。
+本文件记录 SFP-login 登录链路的强制工程规范。
 
 ## 1. 登录流程必须使用明确语义
 
-HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆状态边界的模糊命名或混合流程。
+SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态边界的模糊命名或混合流程。
 
 ### 强制规则
 
@@ -55,6 +55,16 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 - 直接改写已落库的正式认证绑定；
 - 把任何建档流程充当 merge / remap / rebind 工具；
 - 重新引入任何形式的改名 / 重算 UUID 玩家入口（见第 3 节）。
+
+## 4.1 外部认证源改名允许同步，但必须留痕
+
+已落库的正式 Profile 名称**不因等待区操作而改变**；但以下情况例外，且必须显式留痕：
+
+- 外部认证源（如 Yggdrasil / Mojang 平台名、Floodgate 渠道名）一侧发生了改名，
+  且核心层通过 `syncProfileName` 之类的受控机制同步到本地正式 Profile 时，**允许同步**；
+- 同步动作必须记录日志（旧名 → 新名、来源渠道、触发时机），便于事后审计；
+- 同步只能由核心层内部受控机制发起，不得由等待区玩家自助入口触发（见第 3 节）；
+- 同步失败不得回滚认证结果，也不得把玩家退回等待区，除非同步失败意味着身份不一致（此时按第 6 节处理）。
 
 ## 5. 认证凭证规范
 
@@ -155,3 +165,17 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 - 每次修改完成后提交到本地 Git 仓库，但不要推送（push）。
 - 提交说明必须写清楚改了什么、为什么改。
 
+## 12. 项目坐标与命名约定
+
+- 仓库 / 项目名：`SFP-login`
+- 根包名：`cn.starfallplain.sfplogin`（API 层为 `cn.starfallplain.sfplogin.api`）
+- Velocity 插件 id：`sfplogin`；插件显示名：`SFP-login`
+- 数据目录：`plugins/sfplogin`（旧 `plugins/hyperzonelogin` 会在启动时自动迁移一次，旧目录保留）
+- 发布产物名：`SFP-login-<version>.jar`、`SFP-login-<version>-all.jar`、`SFP-login-<version>-ctd.jar`
+- 内置模块 id 保持 `hzl-*` 不变；玩家可见命令与权限节点保持原样（如 `/login`、`hyperzonelogin.admin`）
+
+## 13. 构建与验证
+
+- 构建：`./gradlew build`（Windows 下 `gradlew.bat build`），提交前必须为绿；
+- 单独跑某模块测试：`./gradlew :velocity:test --tests "cn.starfallplain.sfplogin.*"`；
+- 代码风格：`./gradlew spotlessApply`，提交前保持无 diff。

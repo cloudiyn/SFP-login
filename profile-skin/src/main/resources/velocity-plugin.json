@@ -1,9 +1,9 @@
 {
   "id": "hzl-profile-skin",
-  "name": "HyperZoneLogin - Profile Skin",
+  "name": "SFP-login - Profile Skin",
   "version": "${pluginVersion}",
   "authors": ["ksqeib"],
-  "dependencies": [{"id":"hyperzonelogin","optional":false}],
-  "main": "icu.h2l.login.profile.skin.ProfileSkinBootstrap"
+  "dependencies": [{"id":"sfplogin","optional":false}],
+  "main": "cn.starfallplain.sfplogin.profile.skin.ProfileSkinBootstrap"
 }
 

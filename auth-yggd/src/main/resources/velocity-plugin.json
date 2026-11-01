@@ -1,8 +1,8 @@
 {
   "id": "hzl-auth-yggd",
-  "name": "HyperZoneLogin - Auth Yggdrasil",
+  "name": "SFP-login - Auth Yggdrasil",
   "version": "${pluginVersion}",
   "authors": ["ksqeib"],
-  "dependencies": [{"id":"hyperzonelogin","optional":false}],
-  "main": "icu.h2l.login.auth.online.AuthYggdBootstrap"
+  "dependencies": [{"id":"sfplogin","optional":false}],
+  "main": "cn.starfallplain.sfplogin.auth.online.AuthYggdBootstrap"
 }

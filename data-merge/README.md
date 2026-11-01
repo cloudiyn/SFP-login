@@ -4,11 +4,11 @@ Data Merge 模块 (hzl-data-merge)
 
 目的
 ----
-本模块负责将外来数据（目前支持 MinecraftLink/旧 ML 数据与 AuthMe 数据）迁移到 HyperZoneLogin 的数据模型中，主要用于从其他登录/身份插件迁移账号、Entry 与离线认证数据。
+本模块负责将外来数据（目前支持 MinecraftLink/旧 ML 数据与 AuthMe 数据）迁移到 SFP-login 的数据模型中，主要用于从其他登录/身份插件迁移账号、Entry 与离线认证数据。
 
 运行时集成（*不包含构建步骤*）
 --------------------------------
-- 将 `hzl-data-merge` 放入 Velocity 的 `plugins/` 目录，并确保主插件 `hyperzonelogin` 在运行时可用。
+- 将 `hzl-data-merge` 放入 Velocity 的 `plugins/` 目录，并确保主插件 `sfplogin` 在运行时可用。
 - 模块在检测到主插件后会通过 `registerModule(MergeSubModule())` 完成注册，并注册命令 `/hzl-merge` 到代理命令管理器。
 
 主要功能与技术细节

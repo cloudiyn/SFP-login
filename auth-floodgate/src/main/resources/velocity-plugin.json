@@ -1,9 +1,9 @@
 {
   "id": "hzl-auth-floodgate",
-  "name": "HyperZoneLogin - Auth Floodgate",
+  "name": "SFP-login - Auth Floodgate",
   "version": "${pluginVersion}",
   "authors": ["ksqeib"],
-  "dependencies": [{"id":"hyperzonelogin","optional":false},{"id":"floodgate","optional":true}],
-  "main": "icu.h2l.login.auth.floodgate.AuthFloodgateBootstrap"
+  "dependencies": [{"id":"sfplogin","optional":false},{"id":"floodgate","optional":true}],
+  "main": "cn.starfallplain.sfplogin.auth.floodgate.AuthFloodgateBootstrap"
 }
 

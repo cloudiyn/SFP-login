@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -40,7 +40,7 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * HyperZoneLogin-owned embedded NanoLimbo server.
+ * SFP-login-owned embedded NanoLimbo server.
  *
  * This intentionally skips NanoLimbo's console command reader and JVM shutdown
  * hook because it is hosted inside Velocity and is stopped by the plugin

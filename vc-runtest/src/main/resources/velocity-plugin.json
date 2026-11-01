@@ -1,9 +1,9 @@
 {
   "id": "vc-runtest",
-  "name": "HyperZoneLogin VC Runtest",
+  "name": "SFP-login VC Runtest",
   "version": "dev",
   "authors": ["ksqeib"],
   "dependencies": [{"id":"floodgate","optional":true}],
-  "main": "icu.h2l.login.vcruntest.VcRuntestPlugin"
+  "main": "cn.starfallplain.sfplogin.vcruntest.VcRuntestPlugin"
 }
 

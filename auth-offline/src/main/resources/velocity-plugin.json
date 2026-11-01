@@ -1,8 +1,8 @@
 {
   "id": "hzl-auth-offline",
-  "name": "HyperZoneLogin - Auth Offline",
+  "name": "SFP-login - Auth Offline",
   "version": "${pluginVersion}",
   "authors": ["ksqeib"],
-  "dependencies": [{"id":"hyperzonelogin","optional":false}],
-  "main": "icu.h2l.login.auth.offline.AuthOfflineBootstrap"
+  "dependencies": [{"id":"sfplogin","optional":false}],
+  "main": "cn.starfallplain.sfplogin.auth.offline.AuthOfflineBootstrap"
 }

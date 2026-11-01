@@ -1,0 +1,60 @@
+/*
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
+ *
+ * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
+ * Copyright (C) contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+package cn.starfallplain.sfplogin.config
+import org.spongepowered.configurate.objectmapping.ConfigSerializable
+import org.spongepowered.configurate.objectmapping.meta.Comment
+@Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
+@ConfigSerializable
+data class CoreConfig(
+    @JvmField
+    // 数据库
+    @Comment("config.core.database")
+    val database: DatabaseSourceConfig = DatabaseSourceConfig(),
+    @JvmField
+    // UUID映射
+    @Comment("config.core.remap")
+    val remap: RemapConfig = RemapConfig(),
+    @JvmField
+    // 杂项
+    @Comment("config.core.misc")
+    val misc: MiscConfig = MiscConfig(),
+    @JvmField
+    // Debug
+    @Comment("config.core.debug")
+    val debug: DebugConfig = DebugConfig(),
+    @JvmField
+    // 模块开关
+    @Comment("config.core.modules")
+    val modules: ModulesConfig = ModulesConfig(),
+    @JvmField
+    // 等待区服务器
+    @Comment("config.core.vserver")
+    val vServer: VServerConfig = VServerConfig(),
+    @JvmField
+    // 认证
+    @Comment("config.core.auth")
+    val auth: AuthConfig = AuthConfig(),
+    @JvmField
+    // 消息
+    @Comment("config.core.messages")
+    val messages: MessagesConfig = MessagesConfig()
+)

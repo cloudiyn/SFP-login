@@ -1,16 +1,16 @@
-velocity / 主插件 (HyperZoneLogin 核心)
+velocity / 主插件 (SFP-login 核心)
 ===================================
 
 目的
 ----
-`velocity` 是 HyperZoneLogin 的主插件/核心模块，负责：
+`velocity` 是 SFP-login 的主插件/核心模块，负责：
 - 档案（Profile）管理（注册、查找与绑定）；
-- 提供主运行时的 API（例如 `HyperZoneLoginMain`、数据库管理、命令/事件集成点）给其他子模块使用；
+- 提供主运行时的 API（例如 `SFPLoginMain`、数据库管理、命令/事件集成点）给其他子模块使用；
 - 提供基础数据库接口与部分工具（如离线 UUID 识别与 profile 表定义）。
 
 集成与模块注册
 ----------------
-- 子模块应通过主插件暴露的 API 注册自己：调用 `HyperZoneLoginMain.getInstance().registerModule(...)` 注册 `HyperSubModule` 实例。
+- 子模块应通过主插件暴露的 API 注册自己：调用 `SFPLoginMain.getInstance().registerModule(...)` 注册 `HyperSubModule` 实例。
 - 主插件在启动时会注册若干内置子模块（如 `OfflineSubModule`、`YggdrasilSubModule`、`MergeSubModule` 等）；外部模块也可以在运行时检测到主插件并主动调用 `registerModule` 完成集成。
 
 主要技术细节
@@ -33,7 +33,7 @@ velocity / 主插件 (HyperZoneLogin 核心)
   - 主插件会在 `onEnable` 前动态下载并注入 Configurate、Exposed、JDBC 驱动、连接池等运行库；
   - 对需要隔离包名的运行库，会先按原始 Maven 坐标下载到本地缓存，再在注入类路径前重写为 relocated jar；当前主用例是 `bStats`，用于避免与其他插件的 `org.bstats` 包冲突；
   - 同时也会下载 `mckotlin-velocity` 原先提供的 Kotlin StdLib / Kotlin Reflect / KotlinX Coroutines；
-  - 运行库缓存目录为 `plugins/hyperzonelogin/libs/`；
+  - 运行库缓存目录为 `plugins/sfplogin/libs/`；
   - `auth-offline`、`auth-yggd`、`profile-skin`、`data-merge` 也会在注册自身子模块前按需加载各自运行库，并复用该缓存目录；
   - 该机制参考并改编自 LuckPerms，详细署名见仓库根目录的 `THIRD_PARTY_NOTICES.md`。
 

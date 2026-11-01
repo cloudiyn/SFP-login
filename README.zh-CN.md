@@ -1,20 +1,20 @@
-# HyperZoneLogin
+# SFP-login
 
-**HyperZoneLogin** 是一个面向 Minecraft Velocity 代理网络的认证框架，
+**SFP-login** 是一个面向 Minecraft Velocity 代理网络的认证框架，
 用于把多种登录方式统一到同一套 Profile / 档案体系中。
 
 **语言 / Languages：** [English](README.md) | [简体中文](README.zh-CN.md)
 
-[![GitHub Release](https://img.shields.io/github/v/release/HyperZoneLogin/HyperzoneLogin?label=Release)](https://github.com/HyperZoneLogin/HyperzoneLogin/releases)
-[![License](https://img.shields.io/github/license/HyperZoneLogin/HyperzoneLogin?label=License)](./LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/CNRan/SFP-login?label=Release)](https://github.com/CNRan/SFP-login/releases)
+[![License](https://img.shields.io/github/license/CNRan/SFP-login?label=License)](./LICENSE)
 [![Discord](https://img.shields.io/discord/1492467475810484244.svg?logo=discord&label=Discord)](https://discord.gg/dCAeNyR9TA)
 [![QQ Group](https://img.shields.io/badge/QQ%20Group-832210691-12B7F5?logo=tencentqq&logoColor=white)](https://qm.qq.com/q/GZWVfEyokS)
-[![Proxy Stats](https://img.shields.io/bstats/servers/30691?logo=minecraft&label=Servers)](https://bstats.org/plugin/velocity/HyperZoneLogin/30691)
-[![Proxy Stats](https://img.shields.io/bstats/players/30691?logo=minecraft&label=Players)](https://bstats.org/plugin/velocity/HyperZoneLogin/30691)
+[![Proxy Stats](https://img.shields.io/bstats/servers/30691?logo=minecraft&label=Servers)](https://bstats.org/plugin/velocity/SFP-login/30691)
+[![Proxy Stats](https://img.shields.io/bstats/players/30691?logo=minecraft&label=Players)](https://bstats.org/plugin/velocity/SFP-login/30691)
 
 ## 项目简介
 
-HyperZoneLogin 适合需要统一认证入口的代理服网络，例如：
+SFP-login 适合需要统一认证入口的代理服网络，例如：
 
 - 同时支持多种登录方式
 - 需要统一档案创建、绑定与解析流程
@@ -58,7 +58,7 @@ HyperZoneLogin 适合需要统一认证入口的代理服网络，例如：
 
 ## 社区
 
-- Issue：<https://github.com/HyperZoneLogin/HyperzoneLogin/issues>
+- Issue：<https://github.com/CNRan/SFP-login/issues>
 - Discord：<https://discord.gg/dCAeNyR9TA>
 - QQ 群：<https://qm.qq.com/q/GZWVfEyokS>
 

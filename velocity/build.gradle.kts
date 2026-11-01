@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -20,13 +20,13 @@
  */
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import icu.h2l.gradle.needPackageCompileOnly
+import cn.starfallplain.sfplogin.gradle.needPackageCompileOnly
 import org.gradle.jvm.tasks.Jar
 
 plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.shadow)
-    id("icu.h2l.runtime-dependencies")
+    id("cn.starfallplain.sfplogin.runtime-dependencies")
     kotlin("kapt")
 }
 
@@ -70,7 +70,7 @@ val relocateBstatsCompileOnlyJar = tasks.register<ShadowJar>("relocateBstatsComp
     configurations = listOf(bstatsRelocatedClasspath)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    relocate("org.bstats", "icu.h2l.login.libs.bstats")
+    relocate("org.bstats", "cn.starfallplain.sfplogin.libs.bstats")
 
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/INDEX.LIST", "module-info.class")
 }
@@ -156,7 +156,7 @@ tasks {
     }
 
     named<Jar>("jar") {
-        archiveBaseName.set("HyperZoneLogin")
+        archiveBaseName.set("SFP-login")
         archiveClassifier.set(if (velocityCtdBuild) "ctd" else "")
         // Keep the official and VelocityCTD builds in separate directories so one build
         // never writes ctd jars into the official libs dir (or vice versa). Without this
@@ -172,8 +172,8 @@ tasks {
 
     register<Jar>("monolithJar") {
         group = "build"
-        description = "Builds an all-in-one HyperZoneLogin jar with embedded optional modules and CLI tool."
-        archiveBaseName.set("HyperZoneLogin")
+        description = "Builds an all-in-one SFP-login jar with embedded optional modules and CLI tool."
+        archiveBaseName.set("SFP-login")
         archiveClassifier.set(if (velocityCtdBuild) "all-ctd" else "all")
         // Same per-variant split as the "jar" task (see above).
         destinationDirectory.set(if (velocityCtdBuild) layout.buildDirectory.dir("libs-ctd") else layout.buildDirectory.dir("libs"))
@@ -212,7 +212,7 @@ tasks {
 
 
         manifest {
-            attributes["Main-Class"] = "icu.h2l.login.cli.Main"
+            attributes["Main-Class"] = "cn.starfallplain.sfplogin.cli.Main"
         }
     }
 

@@ -1,8 +1,8 @@
 {
-  "id":"hyperzonelogin",
-  "name":"HyperZoneLogin",
+  "id":"sfplogin",
+  "name":"SFP-login",
   "version":"${pluginVersion}",
   "authors":["ksqeib"],
   "dependencies":[{"id":"limboapi","optional":true},{"id":"floodgate","optional":true}],
-  "main":"icu.h2l.login.HyperZoneLoginBootstrap"
+  "main":"cn.starfallplain.sfplogin.SFPLoginBootstrap"
 }

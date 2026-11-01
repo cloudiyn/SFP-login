@@ -1,5 +1,5 @@
 /*
- * This file is part of HyperZoneLogin, licensed under the GNU Affero General Public License v3.0 or later.
+ * This file is part of SFP-login, licensed under the GNU Affero General Public License v3.0 or later.
  *
  * Copyright (C) ksqeib (庆灵) <ksqeib@qq.com>
  * Copyright (C) contributors
@@ -57,7 +57,7 @@ tasks.named<Jar>("jar") {
     archiveClassifier.set("")
     archiveVersion.set("")
     manifest {
-        attributes(mapOf("Main-Class" to "icu.h2l.login.nanolimbo.NanoLimboLauncher"))
+        attributes(mapOf("Main-Class" to "cn.starfallplain.sfplogin.nanolimbo.NanoLimboLauncher"))
     }
 }
 
