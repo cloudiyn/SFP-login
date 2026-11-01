@@ -98,6 +98,11 @@ class LoginCommandTest {
         hyperZonePlayer = mockk(relaxUnitFun = true)
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)
+        every { credentialFlow.submitAndLink(any(), any()) } returns
+            cn.starfallplain.sfplogin.api.profile.CredentialLinkResult(
+                cn.starfallplain.sfplogin.api.profile.CredentialLinkStage.LINKED,
+                attachedProfileId = java.util.UUID.randomUUID()
+            )
         profileService = mockk()
         invocation = mockk()
 
@@ -133,7 +138,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
+        verify(exactly = 1) { credentialFlow.submitAndLink(hyperZonePlayer, any()) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_SUCCESS) }
     }
 
@@ -155,7 +160,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
+        verify(exactly = 1) { credentialFlow.submitAndLink(hyperZonePlayer, any()) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_SUCCESS) }
     }
 
@@ -166,7 +171,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 0) { credentialFlow.overVerify(hyperZonePlayer) }
+        verify(exactly = 0) { credentialFlow.submitAndLink(hyperZonePlayer, any()) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_USAGE) }
     }
 

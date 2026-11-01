@@ -165,14 +165,12 @@ class OfflineAuthService(
         )
         return if (created) {
             if (markVerified) {
-                HyperZoneCredentialFlowProvider.get().submitCredential(
+                val linkResult = HyperZoneCredentialFlowProvider.get().submitAndLink(
                     hyperZonePlayer,
                     offlineCredential(normalizedName, profileId = profileId)
                 )
-                runCatching {
-                    HyperZoneCredentialFlowProvider.get().overVerify(hyperZonePlayer)
-                }.getOrElse { throwable ->
-                    return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.PROFILE_ATTACH_FAILED_AFTER_LOGIN))
+                if (!linkResult.isLinked) {
+                    return Result(false, OfflineAuthMessages.PROFILE_ATTACH_FAILED_AFTER_LOGIN)
                 }
             }
             if (issueSession) {
@@ -261,14 +259,12 @@ class OfflineAuthService(
             }
         }
 
-        HyperZoneCredentialFlowProvider.get().submitCredential(
+        val linkResult = HyperZoneCredentialFlowProvider.get().submitAndLink(
             hyperPlayer,
             offlineCredential(entry.name, profileId = entry.profileId)
         )
-        runCatching {
-            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
-        }.getOrElse { throwable ->
-            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
+        if (!linkResult.isLinked) {
+            return Result(false, OfflineAuthMessages.ATTACHED_PROFILE_MISSING)
         }
         // 档案已在此时完成绑定，补全统一密码表中可能为空的 profileId（旧库/迁移数据）
         ensureProfileBinding(entry.name, entry.profileId)
@@ -548,14 +544,12 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.PASSWORD_RESET_FAILED)
         }
 
-        HyperZoneCredentialFlowProvider.get().submitCredential(
+        val linkResult = HyperZoneCredentialFlowProvider.get().submitAndLink(
             hyperPlayer,
             offlineCredential(entry.name, profileId = profileId)
         )
-        runCatching {
-            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
-        }.getOrElse { throwable ->
-            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
+        if (!linkResult.isLinked) {
+            return Result(false, OfflineAuthMessages.ATTACHED_PROFILE_MISSING)
         }
         ensureProfileBinding(entry.name, profileId)
         return Result(true, OfflineAuthMessages.PASSWORD_CHANGE_AUTO_AUTHED)
@@ -668,11 +662,11 @@ class OfflineAuthService(
             return SessionCheckResult(false, prepared.message)
         }
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        prepared.credential?.let { HyperZoneCredentialFlowProvider.get().submitCredential(hyperPlayer, it) }
-        runCatching {
-            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
-        }.getOrElse { throwable ->
-            return SessionCheckResult(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
+        prepared.credential?.let { credential ->
+            val linkResult = HyperZoneCredentialFlowProvider.get().submitAndLink(hyperPlayer, credential)
+            if (!linkResult.isLinked) {
+                return SessionCheckResult(false, OfflineAuthMessages.ATTACHED_PROFILE_MISSING)
+            }
         }
         return SessionCheckResult(true, prepared.message)
     }

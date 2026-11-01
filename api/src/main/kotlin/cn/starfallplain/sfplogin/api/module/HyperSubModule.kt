@@ -42,4 +42,15 @@ interface HyperSubModule {
      * 将当前子模块注册到指定的 [HyperZoneApi] 运行时中。
      */
     fun register(api: HyperZoneApi)
+
+    /**
+     * 模块被卸载或被注册回滚时调用，用于释放 [register] 中登记的资源
+     * （监听器、命令、注册表条目等）。
+     *
+     * 默认空实现。实现应幂等，且尽量不抛异常：核心层捕获异常后只记录警告，
+     * 并继续完成其余卸载步骤。
+     */
+    fun unregister(api: HyperZoneApi) {
+        // 默认没有需要释放的资源
+    }
 }

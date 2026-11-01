@@ -229,3 +229,20 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
 - 事件监听器（如 Floodgate 档案替换）可能同步等待皮肤解析，因此 `LoginProfileReplaceEvent`
   必须通过 `thenComposeAsync` 在工作线程触发，不能在事件循环上触发。
 - 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/runtime/ConnectionHandoffTest.kt`。
+
+## 17. 凭证链接与模块可重注册
+
+- **三态契约**（`api/.../api/profile/CredentialFlowProvider.kt`）：
+  `submitCredential`（SUBMITTED，只登记）→ `overVerify`（消费并 attach，返回档案 ID 或 `null`）→
+  `submitAndLink`（一次完成 SUBMITTED → LINKED，失败时回滚并返回 REJECTED）。
+  认证模块只应调用 `submitAndLink`，不要自己拼“先提交再验证”，否则失败会留下半提交凭证，
+  把玩家误标成已认证。
+- **回滚语义**：`restoreCredentials(player, previous)` 先清空再按顺序重新登记，
+  保证不残留失败提交的凭证；`submitAndLink` 在 `overVerify` 返回 `null` 或抛错时都会回滚。
+- **模块注册是事务**（`velocity/.../runtime/ModuleRegistrar`）：注册凭证渠道 → `module.register(api)`；
+  任一步失败都会注销该模块已声明的渠道并调用 `HyperSubModule.unregister(api)` 补偿。
+  同一模块类重复注册时先卸载旧实例，实现“模块可重注册”。
+- **卸载顺序**：`unregisterAll()` 按注册顺序的逆序释放；`HyperZoneContext` 以 `modules` 资源登记，
+  在 `onDisable` 时自动调用。
+- 守护测试：`api/src/test/kotlin/cn/starfallplain/sfplogin/api/profile/CredentialLinkFlowTest.kt`、
+  `velocity/src/test/kotlin/cn/starfallplain/sfplogin/runtime/ModuleRegistrarTest.kt`。

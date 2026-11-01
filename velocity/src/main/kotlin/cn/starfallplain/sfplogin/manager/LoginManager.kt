@@ -103,17 +103,18 @@ class LoginManager(
         credentialsByChannel.remove(channel)
     }
 
-    override fun overVerify(player: HyperZonePlayer) {
+    override fun overVerify(player: HyperZonePlayer): UUID? {
         val attachedProfile = profileService.attachVerifiedCredentialProfile(player)
         if (attachedProfile == null) {
             player.sendMessage(sfpLoginMain().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
-            return
+            return null
         }
         // 渠道提示只是信息性文案，任何异常都不应影响已经完成的登录流程
         runCatching { sendAuthChannelNotice(player) }.onFailure { throwable ->
             debug(HyperZoneDebugType.GENERAL) { "发送认证渠道提示失败: ${throwable.message}" }
         }
         onProfileAttached(player)
+        return attachedProfile.id
     }
 
     /**

@@ -93,6 +93,7 @@ class SFPLoginMain(
     lateinit var databaseHelper: DatabaseHelper
     lateinit var profileService: VelocityHyperZoneProfileService
     lateinit var credentialChannelRegistry: CredentialChannelRegistryImpl
+    private lateinit var moduleRegistrar: cn.starfallplain.sfplogin.runtime.ModuleRegistrar
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
     lateinit var waitingAreaReleaseGateRegistry: WaitingAreaReleaseGateRegistry
@@ -163,6 +164,8 @@ class SFPLoginMain(
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, startConfig.language))
         loadCoreConfig()
         credentialChannelRegistry = CredentialChannelRegistryImpl(coreConfig.auth)
+        moduleRegistrar = cn.starfallplain.sfplogin.runtime.ModuleRegistrar(logger, credentialChannelRegistry)
+        context.onClose("modules") { moduleRegistrar.unregisterAll() }
         messageService = MessageService(dataDirectory, logger)
         messageService.load(coreConfig.messages)
         HyperZoneMessageServiceProvider.bind(messageService)
@@ -274,23 +277,20 @@ class SFPLoginMain(
     val proxy: ProxyServer
         get() = server
 
+    /**
+     * 注册一个子模块。
+     *
+     * 凭证渠道注册与模块注册被视为一个事务：任一步失败都会回滚已注册的渠道并调用
+     * 模块的 `unregister`，不会留下半加载状态。同一模块类重复注册时先卸载旧实例。
+     */
     fun registerModule(module: HyperSubModule, api: HyperZoneApi) {
-        try {
-            module.credentialChannelIds.forEach { channelId ->
-                val ability = credentialChannelRegistry.registerChannel(channelId)
-                logger.info(
-                    "凭证渠道已注册: {} (模块: {}) [canRegister={}]",
-                    channelId,
-                    module.javaClass.simpleName,
-                    ability.canRegister
-                )
-            }
-            module.register(api)
-            logger.info("模块加载成功: ${module.javaClass.name}")
-        } catch (e: Exception) {
-            logger.error("加载模块 ${module.javaClass.name} 失败: ${e.message}", e)
-        }
+        moduleRegistrar.register(module, api)
     }
+
+    /**
+     * 卸载指定模块（按类名）。
+     */
+    fun unregisterModule(moduleId: String): Boolean = moduleRegistrar.unregister(moduleId)
 
     private fun registerConfiguredEmbeddedModules() {
         registerEmbeddedModule(EmbeddedModuleRegistry.authFloodgate, coreConfig.modules.authFloodgate)

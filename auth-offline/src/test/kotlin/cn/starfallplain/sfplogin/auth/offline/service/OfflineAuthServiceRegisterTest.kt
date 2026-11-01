@@ -101,6 +101,11 @@ class OfflineAuthServiceRegisterTest {
         profileService = mockk()
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)
+        every { credentialFlow.submitAndLink(any(), any()) } returns
+            cn.starfallplain.sfplogin.api.profile.CredentialLinkResult(
+                cn.starfallplain.sfplogin.api.profile.CredentialLinkStage.LINKED,
+                attachedProfileId = java.util.UUID.randomUUID()
+            )
 
         every { hyperZonePlayer.clientOriginalName } returns USERNAME
         every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
@@ -140,13 +145,12 @@ class OfflineAuthServiceRegisterTest {
         assertEquals(64, saved.passwordHash.length)
         assertNotEquals(VALID_PASSWORD, saved.passwordHash)
         verify(exactly = 1) {
-            credentialFlow.submitCredential(hyperZonePlayer, match {
+            credentialFlow.submitAndLink(hyperZonePlayer, match {
                 it.channelId == "offline" &&
                     it.credentialId == NORMALIZED_NAME &&
                     it.getBoundProfileId() == PROFILE.id
             })
         }
-        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
     }
 
     @Test
@@ -193,7 +197,7 @@ class OfflineAuthServiceRegisterTest {
         assertEquals(OfflineAuthMessages.REGISTER_BOUND_SUCCESS, result.message)
         assertNotNull(saved)
         verify(exactly = 1) { profileService.getAttachedProfile(hyperZonePlayer) }
-        verify(exactly = 0) { credentialFlow.overVerify(hyperZonePlayer) }
+        verify(exactly = 0) { credentialFlow.submitAndLink(hyperZonePlayer, any()) }
     }
 
     @Test
@@ -258,13 +262,12 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(result.success)
         assertEquals(OfflineAuthMessages.LOGIN_SUCCESS, result.message)
         verify(exactly = 1) {
-            credentialFlow.submitCredential(hyperZonePlayer, match {
+            credentialFlow.submitAndLink(hyperZonePlayer, match {
                 it.channelId == "offline" &&
                     it.credentialId == NORMALIZED_NAME &&
                     it.getBoundProfileId() == PROFILE.id
             })
         }
-        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
     }
 
     @Test
@@ -292,7 +295,7 @@ class OfflineAuthServiceRegisterTest {
         assertEquals(OfflineAuthMessages.REGISTER_CREATE_BLOCKED, result.message)
         assertNull(repository.getByName(NORMALIZED_NAME))
         verify(exactly = 0) { profileService.create(any()) }
-        verify(exactly = 0) { credentialFlow.submitCredential(any(), any()) }
+        verify(exactly = 0) { credentialFlow.submitAndLink(any(), any()) }
     }
 
     @Test
