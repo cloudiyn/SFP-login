@@ -10,7 +10,8 @@ velocity / 主插件 (SFP-login 核心)
 
 集成与模块注册
 ----------------
-- 子模块应通过主插件暴露的 API 注册自己：调用 `SFPLoginMain.getInstance().registerModule(...)` 注册 `HyperSubModule` 实例。
+- 子模块应通过主插件暴露的 API 注册自己：`HyperZoneApiProvider.get().registerModule(module)`（`module` 为 `HyperSubModule` 实例）。
+  2.0.0 起不再有 `SFPLoginMain.getInstance()` / `SFPLoginMain.getCoreConfig()` 这类伴生静态访问器，运行时上下文改为 `cn.starfallplain.sfplogin.runtimeContext()` / `coreConfig()` / `sfpLoginMain()`；外部模块必须用新包名 `cn.starfallplain.sfplogin.api` 重新编译。
 - 主插件在启动时会注册若干内置子模块（如 `OfflineSubModule`、`YggdrasilSubModule`、`MergeSubModule` 等）；外部模块也可以在运行时检测到主插件并主动调用 `registerModule` 完成集成。
 
 主要技术细节
@@ -55,6 +56,16 @@ velocity / 主插件 (SFP-login 核心)
   - 默认提供 `messages/en_us.conf`、`messages/zh_cn.conf`、`messages/ru_ru.conf` 三套文案；
   - 服主可直接编辑这些语言文件，自定义核心模块面向玩家的提示内容；
   - 修改后可使用 `/hzl reload` 重新加载消息配置。
+
+从 1.x 升级（破坏性变更）
+--------------------------
+- **坐标全改**：插件 id 从 `hyperzonelogin` 改为 `sfplogin`，数据目录从 `plugins/hyperzonelogin` 变为 `plugins/sfplogin`，
+  API 包名从 `icu.h2l.*` 变为 `cn.starfallplain.sfplogin.*`；生产环境**原地替换 jar 即可**，首次启动会自动复制旧数据目录（旧目录不会被删除，确认无误后自行清理）。
+- **外部/独立模块 jar 必须重编译**：依赖旧包名 `icu.h2l.api` 的模块在新版本上会编译/加载失败；内置模块已随主插件更新。
+- **命令与权限不变**：玩家侧命令（`/login`、`/register`、`/hzl ...`）与权限节点（`hyperzonelogin.admin`、`hyperzonelogin.qq.whitelist.bypass`）保持原样，模块 id 仍是 `hzl-*`。
+- **等待区只剩 outpre**：内置 NanoLimbo 后端移除，`vServer.mode: backend` 启动时自动迁移为 `outpre` 并备份 `core.conf.bak-<时间戳>`；需要 `vServer.outpre.authHost/authPort` 指向真实认证服。
+- **dialog 登录要求 1.21.6+（协议 771~775）**：Java 客户端在等待区会弹出带输入框的原生登录/注册框；低版本与未收录协议的 ViaVersion 组合自动回退聊天命令。基岩玩家走 Floodgate 表单，未安装 Floodgate 时同样回退聊天。
+- **认证服回传校验**：outpre 桥接时，认证服在 `ServerLoginSuccess` 回传的档案必须与本次登录声明一致，否则断开并回退等待区（提示见 `backend-auth.claim-mismatch`）。
 
 权限（Permission）
 -------------------
