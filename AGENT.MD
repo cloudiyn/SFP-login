@@ -194,3 +194,23 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
 - 上述行为的守护测试：`api/src/test/kotlin/cn/starfallplain/sfplogin/api/util/RemapUtilsTest.kt`、
   `velocity/src/test/kotlin/cn/starfallplain/sfplogin/config/RemapConfigCompatTest.kt`、
   `velocity/src/test/kotlin/cn/starfallplain/sfplogin/inject/network/netty/replacer/LoginProfilePacketReplacerTest.kt`。
+
+## 15. 认证提示框（dialog / 基岩表单）
+
+- **统一契约**：展示层实现 `api/.../api/auth/AuthPromptPresenter`，由 `AuthPromptPresenterRegistry` 按
+  `priority` 选一个可用实现；能力检测抛异常、或没有实现可用时，等待区回退到聊天命令提示（`/login`、`/register`）。
+- **Java dialog**（`velocity/.../dialog/`）：
+  - 只用 `minecraft:multi_action` 对话框，提交按钮动作是 `dynamic/custom`，命名空间 ID 固定为 `hzl:auth`；
+  - PLAY 阶段的包 ID 表在 `DialogPacketIdsTable`，**只收录已核对的协议版本**（771/772/773/774/775）；
+    未收录的版本（含 776 及以后）一律视为不支持，禁止猜 ID —— 发错包会让客户端直接断开；
+  - Velocity 4.1.0 只在 CONFIG 阶段注册 dialog 包，PLAY 阶段靠 `SfpDialogPackets` 手拼
+    `[varint packetId][varint holderId=0][unnamed NBT]` 写入连接的 `Channel`；
+  - 客户端回传的 `custom_click_action` 由 `OutPreClientSessionHandler` 在转发后端之前拦下，
+    经 `DialogCustomActionCodec` 判定；**过期响应也要消费掉**，否则会被后端当成未知包。
+- **基岩表单**（`auth-floodgate/.../prompt/FloodgateAuthPromptPresenter`）：走 Floodgate 内置的 Cumulus 旧版 API
+  （`org.geysermc.cumulus.CustomForm`），优先级高于 dialog；基岩回传的数组按“所有控件”给出，
+  标签位是 `null`，取值必须按控件类型计算下标，不能直接按输入序号读。
+- **ViaVersion**：客户端上报的是翻译后的协议号，是否支持只看 `DialogPacketIdsTable` 是否收录，不做额外探测。
+- 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/dialog/`、
+  `api/src/test/kotlin/cn/starfallplain/sfplogin/api/auth/AuthPromptPresenterRegistryTest.kt`、
+  `auth-floodgate/src/test/kotlin/cn/starfallplain/sfplogin/auth/floodgate/prompt/FloodgateAuthPromptPresenterTest.kt`。

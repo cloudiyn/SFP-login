@@ -41,7 +41,9 @@ import cn.starfallplain.sfplogin.api.util.ConfigFormat
 import cn.starfallplain.sfplogin.api.util.ConfigFormatProvider
 import cn.starfallplain.sfplogin.api.util.ConfigLoader
 import cn.starfallplain.sfplogin.config.i18n.ConfigCommentI18nService
+import cn.starfallplain.sfplogin.api.auth.AuthPromptPresenterRegistry
 import cn.starfallplain.sfplogin.api.vServer.HyperZoneVServerAdapter
+import cn.starfallplain.sfplogin.dialog.SfpDialogAuthPromptPresenter
 import cn.starfallplain.sfplogin.command.HyperZoneLoginCommand
 import cn.starfallplain.sfplogin.config.*
 import cn.starfallplain.sfplogin.database.DatabaseConfig
@@ -190,6 +192,8 @@ class SFPLoginMain(
         syncSlowTestCommands()
 
 //        最后加载模块
+        // 注册 Java dialog 登录提示框（Minecraft 1.21.6+），基岩表单由 auth-floodgate 模块自行注册
+        registerAuthPromptPresenters()
         // Keep internal modules that are part of the main plugin
         registerModule(VelocityNetworkModule(), plugin)
         registerConfiguredEmbeddedModules()
@@ -300,6 +304,27 @@ class SFPLoginMain(
         }, "SFP-login outpre auth probe")
         thread.isDaemon = true
         thread.start()
+    }
+
+    /**
+     * 注册 Java dialog 登录提示框展示层。
+     *
+     * 关闭 `auth.prompt.dialogEnabled` 时完全不注册，等待区回退到聊天命令提示。
+     * 基岩（Floodgate）表单由 `auth-floodgate` 模块以更高优先级自行注册。
+     */
+    private fun registerAuthPromptPresenters() {
+        val prompt = coreConfig.auth.prompt
+        if (!prompt.dialogEnabled) {
+            logger.info("登录提示框已禁用（auth.prompt.dialogEnabled=false），等待区将使用聊天命令提示")
+            return
+        }
+        AuthPromptPresenterRegistry.register(
+            SfpDialogAuthPromptPresenter(
+                timeoutMillis = prompt.dialogTimeoutSeconds.coerceAtLeast(0L) * 1_000L,
+                inputLengthLimit = prompt.inputLengthLimit.coerceAtLeast(8),
+            )
+        )
+        logger.info("已注册 Java dialog 登录提示框（协议 {}）", cn.starfallplain.sfplogin.dialog.DialogPacketIdsTable.supportedProtocols().sorted())
     }
 
     private fun logInternalTestWarning() {

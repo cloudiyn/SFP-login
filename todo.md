@@ -120,15 +120,15 @@
 
 ## R2 Dialog / 基岩表单登录
 
-- [ ] **R2-1 API 契约**：`auth/api` 增加 `AuthPromptPresenter`（player、mode LOGIN/REGISTER、title/body、提交回调、close 回调）
-- [ ] **R2-2 Java dialog 渲染**：`Dialog` NBT 构建（`minecraft:multi_action`，`inputs` 用 `text`）+ `DialogShowPacket`；`protocol >= 771` 判定用 `ProtocolVersionCompat`
-- [ ] **R2-3 自定义包提交**：发送 `dialog/run_command` 不行，改为 `dynamic/custom` → `ServerboundCustomClickActionPacket`；代理侧解析 payload NBT（`hzl:auth`），在 `OutPreClientSessionHandler` 拦截，不转发后端
-- [ ] **R2-4 offline 渠道接入**：登录/注册直接走 `OfflineAuthService`；错误回显在同一 dialog（重开/标题+错误行）；关闭 dialog = 继续等待区/回退聊天命令
-- [ ] **R2-5 Floodgate 基岩表单**：`CustomForm` 两个输入（密码、确认），`FloodgateApi.sendForm`；仅 floodgate 玩家；回退到聊天
-- [ ] **R2-6 路由与能力检测**：按 `ConnectedPlayer` 协议/Floodgate 标记选 presenter；Java `<771`、ViaVersion、未知客户端回退聊天；登录成功/失败后关闭 dialog
-- [ ] **R2-7 配置与 i18n**：`auth.prompt.dialog.enabled`、超时、最大长度（默认 32 不够则配 128）；`dialog.*` 三语文案；等待区进入时自动弹出
-- [ ] **R2-8 测试**：NBT 构建快照、presenter 选择矩阵、custom packet 解码、基岩表单构建；真机 1.21.6+/1.21.5/基岩各一轮
-- [ ] **R2-9 提交**：`feat(auth): 支持 dialog 与基岩表单登录注册`
+- [x] **R2-1 API 契约**：`auth/api` 增加 `AuthPromptPresenter`（player、mode LOGIN/REGISTER、title/body、提交回调、close 回调）
+- [x] **R2-2 Java dialog 渲染**：`Dialog` NBT 构建（`minecraft:multi_action`，`inputs` 用 `text`）+ `DialogShowPacket`；`protocol >= 771` 判定用 `ProtocolVersionCompat`
+- [x] **R2-3 自定义包提交**：发送 `dialog/run_command` 不行，改为 `dynamic/custom` → `ServerboundCustomClickActionPacket`；代理侧解析 payload NBT（`hzl:auth`），在 `OutPreClientSessionHandler` 拦截，不转发后端
+- [x] **R2-4 offline 渠道接入**：登录/注册直接走 `OfflineAuthService`；错误回显在同一 dialog（重开/标题+错误行）；关闭 dialog = 继续等待区/回退聊天命令
+- [x] **R2-5 Floodgate 基岩表单**：`CustomForm` 两个输入（密码、确认），`FloodgateApi.sendForm`；仅 floodgate 玩家；回退到聊天
+- [x] **R2-6 路由与能力检测**：按 `ConnectedPlayer` 协议/Floodgate 标记选 presenter；Java `<771`、ViaVersion、未知客户端回退聊天；登录成功/失败后关闭 dialog
+- [x] **R2-7 配置与 i18n**：`auth.prompt.dialog.enabled`、超时、最大长度（默认 32 不够则配 128）；`dialog.*` 三语文案；等待区进入时自动弹出
+- [x] **R2-8 测试**：NBT 构建快照、presenter 选择矩阵、custom packet 解码、基岩表单构建（已完成离线单测；真机 1.21.6+/1.21.5/基岩各一轮留到 R1-4 统一在测试服验收）
+- [x] **R2-9 提交**：`feat(auth): 支持 dialog 与基岩表单登录注册`
 
 ---
 

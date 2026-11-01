@@ -43,6 +43,7 @@ import com.velocitypowered.proxy.protocol.packet.config.FinishedUpdatePacket
 import com.velocitypowered.proxy.protocol.packet.config.KnownPacksPacket
 import com.velocitypowered.proxy.protocol.packet.config.StartUpdatePacket
 import com.velocitypowered.proxy.protocol.util.PluginMessageUtil
+import cn.starfallplain.sfplogin.dialog.DialogPromptRouter
 import cn.starfallplain.sfplogin.inject.network.NettyReflectionHelper
 import cn.starfallplain.sfplogin.inject.network.NettyReflectionHelper.reflectedTeardown
 import cn.starfallplain.sfplogin.manager.HyperChatCommandManagerImpl
@@ -231,6 +232,10 @@ class OutPreClientBridgeSessionHandler(
     }
 
     override fun handle(packet: ServerboundCustomClickActionPacket): Boolean {
+        // 若该包被解析成了注册类型（CONFIG 阶段），同样只消费不转发。
+        if (DialogPromptRouter.tryHandle(player, packet.content())) {
+            return true
+        }
         queue.sendRetained(
             requiredPhase = activeClientPhase(),
             writeNow = { it.write(packet.retain()) },
@@ -321,6 +326,11 @@ class OutPreClientBridgeSessionHandler(
     }
 
     override fun handleUnknown(buf: ByteBuf) {
+        // dialog 回传包（custom_click_action）在 PLAY 阶段没有对应的 packet 类，
+        // 会落到这里；先尝试消费，命中则不转发给后端。
+        if (DialogPromptRouter.tryHandle(player, buf)) {
+            return
+        }
         queue.sendRetained(
             requiredPhase = activeClientPhase(),
             writeNow = { it.write(buf.retain()) },
@@ -330,6 +340,7 @@ class OutPreClientBridgeSessionHandler(
     }
 
     override fun disconnected() {
+        DialogPromptRouter.clear(player.uniqueId)
         queue.clear()
         bridge.disconnect()
         runCatching {

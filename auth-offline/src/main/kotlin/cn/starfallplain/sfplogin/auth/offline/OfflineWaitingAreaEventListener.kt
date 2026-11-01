@@ -26,12 +26,17 @@ import cn.starfallplain.sfplogin.api.event.vServer.VServerJoinEvent
 import cn.starfallplain.sfplogin.auth.offline.service.OfflineAuthService
 
 class OfflineWaitingAreaEventListener(
-    private val authService: OfflineAuthService
+    private val authService: OfflineAuthService,
+    private val promptFlow: OfflineAuthPromptFlow,
 ) {
     @Subscribe
     fun onWaitingAreaJoin(event: VServerJoinEvent) {
         if (event.proxyPlayer.isOnlineMode) return
         if (event.hyperZonePlayer.hasAttachedProfile()) return
+
+        // 优先弹出登录/注册提示框（Java dialog、基岩表单）；
+        // 客户端或配置不支持时回退到等待区聊天提示。
+        if (promptFlow.presentFor(event.proxyPlayer, event.hyperZonePlayer)) return
 
         authService.getJoinPrompts(event.proxyPlayer).forEach { line ->
             event.hyperZonePlayer.sendMessage(line)

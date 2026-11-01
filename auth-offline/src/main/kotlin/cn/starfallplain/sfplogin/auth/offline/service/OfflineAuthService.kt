@@ -601,6 +601,20 @@ class OfflineAuthService(
         return prompts
     }
 
+    /**
+     * 该玩家是否已存在离线密码档案。
+     *
+     * 供提示框流程决定展示「登录」还是「注册」界面。
+     */
+    fun hasOfflineAccount(player: Player): Boolean = resolveEntryByPlayer(player) != null
+
+    /**
+     * 该玩家是否已启用 TOTP 二次验证。
+     *
+     * 供提示框流程决定是否需要额外展示验证码输入。
+     */
+    fun isTotpEnabledFor(player: Player): Boolean = resolveEntryByPlayer(player)?.let(::isTotpEnabled) == true
+
     fun tryAutoLoginPrepare(player: Player): SessionPrepareResult? {
         val config = AuthOfflineConfigLoader.getConfig()
         val policy = config.main.toChannelPasswordPolicy()

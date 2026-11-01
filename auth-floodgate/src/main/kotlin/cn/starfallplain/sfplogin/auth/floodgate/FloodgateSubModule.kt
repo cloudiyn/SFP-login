@@ -22,6 +22,7 @@
 package cn.starfallplain.sfplogin.auth.floodgate
 
 import cn.starfallplain.sfplogin.api.HyperZoneApi
+import cn.starfallplain.sfplogin.api.auth.AuthPromptPresenterRegistry
 import cn.starfallplain.sfplogin.api.db.table.ProfileTable
 import cn.starfallplain.sfplogin.api.log.info
 import cn.starfallplain.sfplogin.api.message.HyperZoneModuleMessageResources
@@ -33,6 +34,7 @@ import cn.starfallplain.sfplogin.auth.floodgate.listener.FloodgateGameProfileLis
 import cn.starfallplain.sfplogin.auth.floodgate.listener.FloodgateLoginProfileReplaceListener
 import cn.starfallplain.sfplogin.auth.floodgate.listener.FloodgateOpenStartAuthListener
 import cn.starfallplain.sfplogin.auth.floodgate.listener.FloodgateVServerAuthListener
+import cn.starfallplain.sfplogin.auth.floodgate.prompt.FloodgateAuthPromptPresenter
 import cn.starfallplain.sfplogin.auth.floodgate.service.FloodgateApiHolder
 import cn.starfallplain.sfplogin.auth.floodgate.service.FloodgateAuthService
 import cn.starfallplain.sfplogin.auth.floodgate.service.FloodgateSessionHolder
@@ -68,6 +70,11 @@ class FloodgateSubModule : HyperSubModule {
         api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService, floodgateApiHolder))
         api.proxy.eventManager.register(api, FloodgateVServerAuthListener(authService))
         api.proxy.eventManager.register(api, FloodgateLoginProfileReplaceListener())
+
+        // 基岩玩家进入等待区时用 Cumulus 表单弹出登录/注册窗口（优先级高于 Java dialog）
+        if (config.loginFormEnabled) {
+            AuthPromptPresenterRegistry.register(FloodgateAuthPromptPresenter(floodgateApiHolder))
+        }
 
         // 渠道密码共享命令与统一密码门由 offline 渠道负责注册与路由，本渠道不再注册自己的密码门
 

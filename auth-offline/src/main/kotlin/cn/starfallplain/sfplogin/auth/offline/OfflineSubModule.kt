@@ -112,7 +112,10 @@ class OfflineSubModule : HyperSubModule {
                 playerAccessor = api.hyperZonePlayers
             )
         )
-        proxy.eventManager.register(api, OfflineWaitingAreaEventListener(offlineAuthService))
+        proxy.eventManager.register(
+            api,
+            OfflineWaitingAreaEventListener(offlineAuthService, OfflineAuthPromptFlow(offlineAuthService))
+        )
         info { "OfflineSubModule 已加载，离线聊天命令与提示监听器已注册" }
     }
 }

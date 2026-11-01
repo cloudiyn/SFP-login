@@ -46,6 +46,7 @@ dependencies {
     // 迁移器测试需要真实的事务型数据库：exposed-jdbc + sqlite（覆盖旧版 SQLite 升级路径）
     testImplementation(libs.exposedJdbc)
     testImplementation(libs.sqliteJdbc)
+    testImplementation("io.mockk:mockk:1.13.17")
 }
 
 tasks.test {

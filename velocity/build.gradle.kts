@@ -116,6 +116,7 @@ dependencies {
 
     compileOnly(libs.nettyAll)
     compileOnly(libs.log4jApi)
+    compileOnly(libs.adventureNbt)
     compileOnly(libs.adventureTextSerializerGson)
     compileOnly(libs.adventureTextLoggerSlf4j)
     compileOnly(libs.adventureTextMinimessage)
@@ -134,6 +135,7 @@ dependencies {
         exclude(group = "com.velocityctd", module = "velocity-proxy-log4j2-plugin")
     }
     testImplementation(libs.nettyAll)
+    testImplementation(libs.adventureNbt)
     testImplementation(libs.adventureTextLoggerSlf4j)
     testImplementation(libs.adventureTextMinimessage)
     testImplementation(libs.configurateExtraKotlin)

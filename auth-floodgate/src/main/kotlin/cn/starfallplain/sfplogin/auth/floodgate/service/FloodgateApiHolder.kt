@@ -44,6 +44,15 @@ open class FloodgateApiHolder(
         return api.playerPrefix
     }
 
+    /**
+     * 向基岩玩家发送 Cumulus 表单。
+     *
+     * @return 表单已下发时返回 true
+     */
+    open fun sendForm(uuid: UUID, form: org.geysermc.cumulus.Form<*>): Boolean {
+        return api.sendForm(uuid, form)
+    }
+
     open fun resolveLoginIdentity(userName: String, playerIp: String): ResolvedFloodgateIdentity? {
         val loginName = userName.lowercase()
         val matchedPlayers = api.players.asSequence()

@@ -33,4 +33,8 @@ class FloodgateAuthConfig {
     // 透传 Floodgate UUID
     @Comment("config.floodgate.pass-uuid")
     var passFloodgateUuidToProfileResolve: Boolean = true
+
+    // 基岩玩家进入等待区时用 Cumulus 表单弹出登录/注册窗口
+    @Comment("config.floodgate.login-form")
+    var loginFormEnabled: Boolean = true
 }

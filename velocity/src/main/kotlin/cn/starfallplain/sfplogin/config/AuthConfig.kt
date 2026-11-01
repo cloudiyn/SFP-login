@@ -30,5 +30,27 @@ data class AuthConfig(
     @JvmField
     @Comment("config.core.auth.disableRegistration")
     val disableRegistration: List<String> = emptyList(),
+    @JvmField
+    @Comment("config.core.auth.prompt")
+    val prompt: AuthPromptConfig = AuthPromptConfig(),
+)
+
+/**
+ * 登录提示框（Java dialog / 基岩表单）配置。
+ *
+ * 关闭后所有客户端回退到等待区聊天命令（`/login`、`/register`）。
+ */
+@Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
+@ConfigSerializable
+data class AuthPromptConfig(
+    @JvmField
+    @Comment("config.core.auth.prompt.dialogEnabled")
+    val dialogEnabled: Boolean = true,
+    @JvmField
+    @Comment("config.core.auth.prompt.dialogTimeoutSeconds")
+    val dialogTimeoutSeconds: Long = 120L,
+    @JvmField
+    @Comment("config.core.auth.prompt.inputLengthLimit")
+    val inputLengthLimit: Int = 32,
 )
 
