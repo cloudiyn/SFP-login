@@ -34,7 +34,6 @@ import cn.starfallplain.sfplogin.inject.network.netty.replacer.ChatSessionKiller
 import cn.starfallplain.sfplogin.inject.network.netty.replacer.LoginProfilePacketReplacer
 import cn.starfallplain.sfplogin.inject.network.netty.replacer.ServerLoginSuccessPacketReplacer
 import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
-import cn.starfallplain.sfplogin.vServer.backend.compat.BackendWaitingAreaPlayerInfoFilter
 import io.netty.channel.Channel
 import io.netty.channel.ChannelInitializer
 import java.net.InetSocketAddress
@@ -142,9 +141,6 @@ class VelocityNetworkInjectorImpl(
                     channel.pipeline().addLast("h2l_chat_session_killer", ChatSessionKillerPacketReplacer(channel))
                 }
                 channel.pipeline().addLast("sl_r_rpl", LoginProfilePacketReplacer(channel))
-                if (SFPLoginMain.getInstance().serverAdapter?.needsBackendPlayerInfoCompat() == true) {
-                    channel.pipeline().addLast("h2l_waiting_upsert_filter", BackendWaitingAreaPlayerInfoFilter())
-                }
             }
 
             override fun initChannel(ch: Channel) {

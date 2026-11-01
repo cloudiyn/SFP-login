@@ -29,11 +29,14 @@ import cn.starfallplain.sfplogin.api.event.profile.VerifyInitialGameProfileEvent
 import cn.starfallplain.sfplogin.api.log.HyperZoneDebugType
 import cn.starfallplain.sfplogin.api.log.debug
 import cn.starfallplain.sfplogin.SFPLoginMain
-import cn.starfallplain.sfplogin.vServer.backend.compat.BackendProfileLayerCompatListener.Companion.PLUGIN_CONFLICT_MESSAGE
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 
 class LoginVerifyListener {
+
+    companion object {
+        const val PLUGIN_CONFLICT_MESSAGE = "登录失败：检测到插件冲突。"
+    }
 
     @Subscribe
     fun onGameProfileRequestEvent(event: GameProfileRequestEvent) {

@@ -61,13 +61,10 @@ import cn.starfallplain.sfplogin.profile.WaitingAreaReleaseGateRegistryImpl
 import cn.starfallplain.sfplogin.util.isSnapshotPluginVersion
 import cn.starfallplain.sfplogin.util.readRuntimePluginVersion
 import cn.starfallplain.sfplogin.util.registerApiLogger
-import cn.starfallplain.sfplogin.vServer.backend.BackendAuthHoldListener
-import cn.starfallplain.sfplogin.vServer.backend.compat.BackendLoginProfileReplaceListener
-import cn.starfallplain.sfplogin.vServer.backend.compat.BackendProfileLayerCompatListener
-import cn.starfallplain.sfplogin.vServer.backend.compat.BackendRuntimeProfileCompensator
 import cn.starfallplain.sfplogin.vServer.command.ExitVServerCommand
 import cn.starfallplain.sfplogin.vServer.command.OverVServerCommand
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreVServerAuth
+import cn.starfallplain.sfplogin.vServer.outpre.OutPreAuthEndpointProbe
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import java.nio.file.Files
 import java.nio.file.Path
@@ -90,7 +87,6 @@ class SFPLoginMain(
     lateinit var databaseManager: cn.starfallplain.sfplogin.manager.DatabaseManager
     lateinit var databaseHelper: DatabaseHelper
     lateinit var profileService: VelocityHyperZoneProfileService
-    lateinit var backendRuntimeProfileCompensator: BackendRuntimeProfileCompensator
     lateinit var credentialChannelRegistry: CredentialChannelRegistryImpl
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
@@ -157,7 +153,6 @@ class SFPLoginMain(
         HyperZoneProfileServiceProvider.bind(profileService)
         loginManager = LoginManager(server, profileService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
-        backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(profileService, logger)
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
         // 绑定等待区放行闸门注册表：模块可在 register(api) 阶段注册“离开等待区前”的放行校验
         // （例如 QQ 绑定白名单），核心层在 attach 完成后、真正离开等待区之前同步询问。
@@ -166,10 +161,8 @@ class SFPLoginMain(
 
         activeVServerAdapter = null
 
-        val configuredMode = normalizeVServerMode(coreConfig.vServer.mode)
-        val configuredFallback = coreConfig.vServer.backend.fallbackAuthServer.trim()
         val configuredOutPreAuthAddress = coreConfig.vServer.outpre.resolveOutpreAuthAddress()
-        if (configuredOutPreAuthAddress != null && configuredMode == "outpre") {
+        if (configuredOutPreAuthAddress != null) {
             val outPreAdapter = OutPreVServerAuth(server)
             activeVServerAdapter = outPreAdapter
             outPreAdapter.init(plugin)
@@ -178,16 +171,10 @@ class SFPLoginMain(
                 coreConfig.vServer.outpre.outpreAuthTargetLabel(),
                 configuredOutPreAuthAddress,
             )
-        } else if (configuredFallback.isNotBlank() && configuredMode == "backend") {
-            activeVServerAdapter = BackendAuthHoldListener(server)
-            logger.info("Using backend auth hold server '$configuredFallback'")
+            warnIfOutpreAuthUnreachable(configuredOutPreAuthAddress)
         } else {
-            logger.info(
-                if (configuredMode == "outpre") {
-                    "Outpre mode is enabled but vserver-outpre.conf authHost/authPort is invalid; running without waiting-area adapter"
-                } else {
-                    "Backend mode is enabled but fallbackAuthServer is blank; running without waiting-area adapter"
-                }
+            logger.warn(
+                "vServer.outpre authHost/authPort 无效，等待区不可用；请检查 core.conf 的 vServer.outpre 配置"
             )
         }
 
@@ -212,13 +199,8 @@ class SFPLoginMain(
         val hzlCommand = HyperZoneLoginCommand().createCommand()
         val hzlCommandMeta = proxy.commandManager.metaBuilder(hzlCommand).build()
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
-        if (activeVServerAdapter?.needsBackendInitialProfileCompat() == true) {
-            proxy.eventManager.register(plugin, BackendProfileLayerCompatListener())
-            proxy.eventManager.register(plugin, BackendLoginProfileReplaceListener())
-        }
         proxy.eventManager.register(plugin, AttachedProfileInitialGameProfileListener())
         proxy.eventManager.register(plugin, LoginProfileReplaceDefaultListener())
-        proxy.eventManager.register(plugin, backendRuntimeProfileCompensator)
         proxy.eventManager.register(plugin, LoginVerifyListener())
         proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
@@ -249,7 +231,6 @@ class SFPLoginMain(
     }
 
     private fun registerConfiguredEmbeddedModules() {
-        registerBackendNanolimboEmbeddedModule()
         registerEmbeddedModule(EmbeddedModuleRegistry.authFloodgate, coreConfig.modules.authFloodgate)
         registerEmbeddedModule(EmbeddedModuleRegistry.authOffline, coreConfig.modules.authOffline)
         registerEmbeddedModule(EmbeddedModuleRegistry.authYggd, coreConfig.modules.authYggd)
@@ -257,27 +238,6 @@ class SFPLoginMain(
         registerEmbeddedModule(EmbeddedModuleRegistry.profileSkin, coreConfig.modules.profileSkin)
         registerEmbeddedModule(EmbeddedModuleRegistry.qqWhitelist, coreConfig.modules.qqWhitelist)
         registerEmbeddedModule(EmbeddedModuleRegistry.dataMerge, coreConfig.modules.dataMerge)
-    }
-
-    private fun registerBackendNanolimboEmbeddedModule() {
-        val spec = EmbeddedModuleRegistry.backendNanolimbo
-        if (!coreConfig.modules.backendNanolimbo) {
-            registerEmbeddedModule(spec, false)
-            return
-        }
-
-        val configuredMode = normalizeVServerMode(coreConfig.vServer.mode)
-        if (configuredMode != "outpre") {
-            logger.info("内置模块已禁用: ${spec.displayName} (vServer.mode=$configuredMode，仅 outpre 模式启用)")
-            return
-        }
-
-        if (coreConfig.vServer.outpre.resolveOutpreAuthAddress() == null) {
-            logger.info("内置模块已禁用: ${spec.displayName} (vserver outpre authHost/authPort 无效)")
-            return
-        }
-
-        registerEmbeddedModule(spec, true)
     }
 
     private fun registerEmbeddedModule(spec: EmbeddedModuleSpec, enabled: Boolean) {
@@ -325,16 +285,21 @@ class SFPLoginMain(
             ?: messageService.send(player, MessageKeys.HzlCommand.AUTH_FLOW_UNAVAILABLE)
     }
 
-    private fun normalizeVServerMode(rawMode: String): String {
-        return when (rawMode.trim().lowercase()) {
-            "", "auto", "limbo" -> {
-                logger.warn("vServerMode='{}' is deprecated after Limbo removal; falling back to 'backend'", rawMode)
-                "backend"
+    /**
+     * 启动时不阻塞地在后台探测认证服可达性；连不上只 WARN，不影响代理启动。
+     */
+    private fun warnIfOutpreAuthUnreachable(address: java.net.InetSocketAddress) {
+        val thread = Thread({
+            if (!OutPreAuthEndpointProbe.isReachable(address)) {
+                logger.warn(
+                    "outpre 认证服 {}:{} 当前不可达；等待区连接会失败，请确认认证服已启动（测试服常用 127.0.0.1:30066）",
+                    address.hostString,
+                    address.port,
+                )
             }
-
-            "outpre" -> "outpre"
-            else -> "backend"
-        }
+        }, "SFP-login outpre auth probe")
+        thread.isDaemon = true
+        thread.start()
     }
 
     private fun logInternalTestWarning() {

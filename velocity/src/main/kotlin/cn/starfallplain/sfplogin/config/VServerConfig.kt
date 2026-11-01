@@ -28,7 +28,7 @@ import java.net.InetSocketAddress
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 @ConfigSerializable
 data class VServerConfig(
-    // 登录服实现模式：backend 或 outpre。推荐 outpre 模式，若有问题请使用backend模式。
+    // 登录服实现模式。2.0.0 起只保留 outpre；旧配置里的 backend 会在启动时自动迁移。
     @Comment("config.vserver.mode")
     val mode: String = "outpre",
 
@@ -37,34 +37,8 @@ data class VServerConfig(
     @Comment("config.vserver.remember-requested-server")
     val rememberRequestedServerDuringAuth: Boolean = true,
 
-    val backend: BackendConfig = BackendConfig(),
-
     val outpre: OutpreConfig = OutpreConfig()
 ) {
-    @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
-    @ConfigSerializable
-    data class BackendConfig(
-        // 使用的真实认证等待服 Velocity 服务器名
-        @Comment("config.vserver.backend.fallback-auth-server")
-        val fallbackAuthServer: String = "lobby",
-
-        // 等待区 UpsertPlayerInfo/TabList 兼容过滤补偿
-        @Comment("config.vserver.backend.player-info-compensation")
-        val enablePlayerInfoCompensation: Boolean = true,
-
-        // 档案补偿同步
-        @Comment("config.vserver.backend.profile-compensation")
-        val enableProfileCompensation: Boolean = true,
-
-        // 在线热改 name（风险较低，默认开启）
-        @Comment("config.vserver.backend.name-hot-change")
-        val enableNameHotChange: Boolean = true,
-
-        // 在线热改 UUID（高风险，默认关闭）
-        @Comment("config.vserver.backend.uuid-hot-change")
-        val enableUuidHotChange: Boolean = false
-    )
-
     @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
     @ConfigSerializable
     data class OutpreConfig(

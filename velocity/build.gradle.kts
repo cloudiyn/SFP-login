@@ -52,7 +52,6 @@ kotlin {
 }
 
 val embeddedModuleProjects = listOf(
-    project(":backend-nanolimbo"),
     project(":auth-floodgate"),
     project(":auth-offline"),
     project(":auth-yggd"),
@@ -189,18 +188,10 @@ tasks {
 
         embeddedModuleProjects.forEach { embeddedProject ->
             dependsOn(embeddedProject.tasks.named("classes"))
-            if (embeddedProject.path == ":backend-nanolimbo") {
-                val backendNanolimboJar = embeddedProject.tasks.named("jar", Jar::class)
-                dependsOn(backendNanolimboJar)
-                from(backendNanolimboJar.flatMap { it.archiveFile }.map { archive -> zipTree(archive.asFile) }) {
-                    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF")
-                }
-            } else {
-                val embeddedSourceSets = embeddedProject.extensions.getByType(SourceSetContainer::class.java)
-                from(embeddedSourceSets.named("main").get().output) {
-                    exclude("velocity-plugin.json")
-                    exclude("META-INF/hzl/runtime-dependencies.properties")
-                }
+            val embeddedSourceSets = embeddedProject.extensions.getByType(SourceSetContainer::class.java)
+            from(embeddedSourceSets.named("main").get().output) {
+                exclude("velocity-plugin.json")
+                exclude("META-INF/hzl/runtime-dependencies.properties")
             }
         }
 

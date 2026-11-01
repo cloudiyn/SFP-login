@@ -37,22 +37,15 @@ velocity / 主插件 (SFP-login 核心)
   - `auth-offline`、`auth-yggd`、`profile-skin`、`data-merge` 也会在注册自身子模块前按需加载各自运行库，并复用该缓存目录；
   - 该机制参考并改编自 LuckPerms，详细署名见仓库根目录的 `THIRD_PARTY_NOTICES.md`。
 
-- 认证等待区：
-  - `backend-server.conf` 新增 `vServerMode`：
-    - `backend`：使用当前的后端等待服模式；
-    - `outpre`：先挂起正常 Velocity 注册，把登录阶段连接桥接到真实认证服，认证完成后再继续正常初始服流程；
-  - `backend-server.conf` 只负责 `backend` 模式配置：
-    - `fallbackAuthServer`
-    - `rememberRequestedServerDuringAuth`
-  - 使用 `backend` 模式时，未认证玩家会被固定送入该服务器等待认证；
-  - `outpre` 改为使用独立的 `vserver-outpre.conf`：
-    - `authHost` / `authPort`：outpre 要直连桥接到的真实认证服；
-    - `authLabel`：仅用于日志/状态标识的逻辑名，不需要在 Velocity 中注册；
-    - `rememberRequestedServerDuringAuth`：是否记住玩家在认证阶段切换出来的目标服；
-    - `presentedHost` / `presentedPort` / `presentedPlayerIp`：转接到认证服时，对后端暴露的连接信息；
-     - 认证完成后的目标服回落遵循 Velocity 原生的 `forced-hosts` / `try`（attempt-connection-order）顺序；
-     - 这些参数只由 `vserver-outpre.conf` 控制，不再与 `backend` 模式共享；
-  - `outpre` 的认证服无需在 Velocity 中注册；只要配置好 `authHost/authPort` 即可进行直连桥接；
+- 认证等待区（`core.conf` 的 `vServer.outpre`）：
+  - 2.0.0 起只保留 `outpre` 模式：先挂起正常 Velocity 注册，把登录阶段连接桥接到真实认证服，认证完成后再继续正常初始服流程；
+  - 旧配置里的 `vServer.mode: backend` 与内置 NanoLimbo 后端已移除；启动时会自动把 `vServer.mode` 迁移为 `outpre`，并把原配置备份为 `core.conf.bak-<时间戳>`；
+  - `authHost` / `authPort`：outpre 要直连桥接到的真实认证服（测试服 `127.0.0.1:30066`）；
+  - `authLabel`：仅用于日志/状态标识的逻辑名，不需要在 Velocity 中注册；
+  - `rememberRequestedServerDuringAuth`：是否记住玩家在认证阶段切换出来的目标服；
+  - `presentedHost` / `presentedPort` / `presentedPlayerIp`：转接到认证服时，对后端暴露的连接信息；
+  - 认证完成后的目标服回落遵循 Velocity 原生的 `forced-hosts` / `try`（attempt-connection-order）顺序；
+  - 认证服无需在 Velocity 中注册；只要配置好 `authHost/authPort` 即可进行直连桥接；
   - 认证完成前，玩家不能进入其他后端；
   - 若 `rememberRequestedServerDuringAuth=true`，则会记住玩家原本想去的服务器，并在认证成功后自动连接过去。
 

@@ -172,7 +172,7 @@ body:
     id: config-snippets
     attributes:
       label: 相关配置片段
-      description: 请提供与问题直接相关的配置，例如 `database.conf`、`backend-server.conf`、`entry/*.conf`、`offlinematch.conf`、`profile-skin.conf`
+      description: 请提供与问题直接相关的配置，例如 `database.conf`、`entry/*.conf`、`offlinematch.conf`、`profile-skin.conf`
       render: hocon
     validations:
       required: true

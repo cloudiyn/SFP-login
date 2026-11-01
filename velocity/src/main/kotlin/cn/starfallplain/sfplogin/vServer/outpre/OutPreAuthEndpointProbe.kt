@@ -19,12 +19,31 @@
  *
  */
 
-package cn.starfallplain.sfplogin.nanolimbo
+package cn.starfallplain.sfplogin.vServer.outpre
 
-object NanoLimboLauncher {
-    @JvmStatic
-    fun main(args: Array<String>) {
-        ua.nanit.limbo.NanoLimbo.main(args)
+import java.net.InetSocketAddress
+import java.net.Socket
+
+/**
+ * 探测 outpre 认证服直连地址是否可达。
+ *
+ * 只用于启动时给出 WARN 提示，不阻塞启动：认证服晚于代理启动是常见部署顺序。
+ */
+object OutPreAuthEndpointProbe {
+
+    const val DEFAULT_TIMEOUT_MILLIS = 2_000
+
+    fun isReachable(address: InetSocketAddress, timeoutMillis: Int = DEFAULT_TIMEOUT_MILLIS): Boolean {
+        if (address.port !in 1..65535) {
+            return false
+        }
+        return try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(address.hostString, address.port), timeoutMillis)
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 }
-

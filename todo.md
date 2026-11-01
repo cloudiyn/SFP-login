@@ -102,19 +102,19 @@
 
 ## R3 删除 backend 实现与 NanoLimbo
 
-- [ ] **R3-0 删除清单（已盘点，执行前再确认一次）**
+- [x] **R3-0 删除清单（已盘点并确认）**
   | 目标 | 体积/数量 | 说明 |
   |---|---|---|
   | `velocity/src/main/kotlin/.../vServer/backend/`（5 文件） | 约 42 KB | `BackendAuthHoldListener` 20.7K、`BackendRuntimeProfileCompensator` 11.4K、`BackendWaitingAreaPlayerInfoFilter` 5.0K、`BackendProfileLayerCompatListener` 2.7K、`BackendLoginProfileReplaceListener` 2.5K |
   | `velocity/src/test/.../BackendRuntimeProfileCompensatorTest.kt` | 1 文件 | 随实现删除 |
   | `backend-nanolimbo/`（含 `NanoLimbo/` 子模块） | 3.4 MB（子模块 1.1 MB） | 整个 Gradle 模块 + submodule（commit `169bcc4`）+ `.gitmodules` 条目 |
-  - [ ] 用户确认此清单后执行 `git rm -r`（删除流程：遍历→列清单→确认→删）
+  - [x] 用户确认后执行 `git rm -r`（删除流程：遍历→列清单→确认→删）
 
-- [ ] **R3-1 删除 backend 包与测试**；清理 `HyperZoneLoginMain`、`VelocityNetworkInjectorImpl`、`LoginVerifyListener`、`EmbeddedModuleRegistry` 中的注入/监听注册
-- [ ] **R3-2 配置与模块清理**：`VServerConfig.BackendConfig` 整块、`modules.backendNanolimbo`、`ModulesConfig` 注释、`settings.gradle.kts` include、`gradle/libs.versions.toml` 中仅 NanoLimbo 使用的依赖
-- [ ] **R3-3 outpre 外部 limbo 收口**：校验 `vServer.outpre.authServerAddress` 可达性（启动 fail-fast 或首次登录 WARN）；文档写明测试服 `127.0.0.1:30066`
-- [ ] **R3-4 消息键收敛**：`MessagesBackendAuth` 中只被 backend 使用的键迁移到 outpre 或删除；`config-comments` 同步
-- [ ] **R3-5 测试/构建**：`./gradlew build`；`vc-runtest` 确认不引用 backend；提交 `refactor!: 移除 backend 实现与 backend-nanolimbo`
+- [x] **R3-1 删除 backend 包与测试**；清理 `HyperZoneLoginMain`、`VelocityNetworkInjectorImpl`、`LoginVerifyListener`、`EmbeddedModuleRegistry` 中的注入/监听注册（`PLUGIN_CONFLICT_MESSAGE` 下沉到 `LoginVerifyListener` 伴生对象）
+- [x] **R3-2 配置与模块清理**：`VServerConfig.BackendConfig` 整块、`modules.backendNanolimbo`、`ModulesConfig` 注释、`settings.gradle.kts` include、API 的 `needsBackend*` 钩子、`.gitmodules` 与 CI submodule checkout（`libs.versions.toml` 无需变动：NanoLimbo 用的都是通用 alias）
+- [x] **R3-3 outpre 外部 limbo 收口**：`OutPreAuthEndpointProbe` 启动后台探测 `outpre` 认证服可达性（不阻塞、不可达只 WARN）；README 与 WARN 文案写明测试服 `127.0.0.1:30066`
+- [x] **R3-4 消息键收敛**：核对后 `backend-auth.*` 仍被 `OutPreVServerAuth`/`VelocityPlayerUtil` 使用，键与命名空间保持不动；`config-comments` 三语删除 backend 专用注释键并改写 `config.vserver.mode`
+- [x] **R3-5 测试/构建**：`./gradlew build`；`vc-runtest` 确认不引用 backend；提交 `refactor!: 移除 backend 实现与 backend-nanolimbo`
 
 ---
 

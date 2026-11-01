@@ -82,14 +82,6 @@ object EmbeddedModuleRegistry {
         implementationClassName = "cn.starfallplain.sfplogin.merge.MergeSubModule",
     )
 
-    @Suppress("unused")
-    val backendNanolimbo = EmbeddedModuleSpec(
-        configKey = "backendNanolimbo",
-        displayName = "Backend NanoLimbo",
-        externalPluginId = "hzl-backend-nanolimbo",
-        implementationClassName = "cn.starfallplain.sfplogin.backend.nanolimbo.NanoLimboSubModule",
-    )
-
     fun instantiate(spec: EmbeddedModuleSpec, classLoader: ClassLoader): HyperSubModule? {
         val moduleClass = try {
             Class.forName(spec.implementationClassName, true, classLoader)

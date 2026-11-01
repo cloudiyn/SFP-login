@@ -91,32 +91,6 @@ interface HyperZoneVServerAdapter {
     fun allowsProxyFallbackCommand(player: Player): Boolean = false
 
     /**
-     * 当前等待区实现是否需要后端 PlayerInfo/TabList 兼容补偿。
-     *
-     * 该能力主要服务于 backend 模式下的真实等待服；
-     * outpre 应优先在自己的桥接链路中直接处理，而不是依赖额外 Netty 补丁擦屁股。
-     */
-    fun needsBackendPlayerInfoCompat(): Boolean = false
-
-
-    /**
-     * 当前等待区实现是否需要 attach 后的运行时 GameProfile 补偿同步。
-     *
-     * backend 模式在玩家已经注册进 Velocity 后，仍可能需要对在线索引做补偿；
-     * outpre 应在最终交付给 Velocity 之前自行完成最终 Profile 挂载。
-     */
-    fun needsBackendRuntimeProfileSync(): Boolean = false
-
-    /**
-     * 当前等待区实现是否需要在代理初始登录阶段做 backend 专用的临时 Profile 替换/冲突校验。
-     *
-     * backend 模式依赖该流程保证进入 Velocity 后到离开等待服前一直使用可信临时身份；
-     * outpre 全链路自行掌控，不应再复用这段兼容逻辑。
-     */
-    fun needsBackendInitialProfileCompat(): Boolean = false
-
-
-    /**
      * 退出当前等待区。
      *
      * 注意：这里的“退出”语义由具体实现决定，但必须符合该实现的原生行为。
