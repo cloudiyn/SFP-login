@@ -38,7 +38,6 @@ import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.service.OfflineAuthService
-import icu.h2l.login.auth.offline.service.PendingOfflineRegistrationManager
 import icu.h2l.login.auth.offline.totp.OfflineTotpAuthenticator
 import io.mockk.every
 import io.mockk.mockk
@@ -108,7 +107,6 @@ class LoginCommandTest {
 
         val service = OfflineAuthService(
             repository = repository,
-            pendingRegistrations = PendingOfflineRegistrationManager(),
             playerAccessor = TestPlayerAccessor(hyperZonePlayer),
             profileService = profileService,
             emailSender = NoopEmailSender,

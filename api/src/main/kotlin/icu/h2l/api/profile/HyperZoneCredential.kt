@@ -78,32 +78,4 @@ interface HyperZoneCredential {
         return null
     }
 
-    /**
-     * 在真正写入绑定关系前做一次校验。
-     *
-     * 返回 null 表示允许绑定；否则返回拒绝原因。
-     *
-     * @param profileId 待绑定的正式档案标识
-     */
-    fun validateBind(profileId: UUID): String? {
-        return null
-    }
-
-    /**
-     * 将该凭证绑定到指定 Profile。
-     *
-     * 实现应把绑定关系写入模块自己的数据表。
-     *
-     * @param profileId 要绑定到的正式档案标识
-     */
-    fun bind(profileId: UUID): Boolean
-
-    /**
-     * 核心层确认凭证消费完成（通常是绑定并 attach 成功）后的回调。
-     *
-     * 默认空实现；渠道可按需落库或清理一次性状态。
-     */
-    fun onConsumed(profileId: UUID) {
-        // no-op by default
-    }
 }

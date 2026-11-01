@@ -42,7 +42,6 @@ import java.util.*
 
 class OfflineAuthService(
     private val repository: OfflineAuthRepository,
-    private val pendingRegistrations: PendingOfflineRegistrationManager,
     private val playerAccessor: HyperZonePlayerAccessor,
     private val profileService: HyperZoneProfileService,
     private val emailSender: OfflineAuthEmailSender,
@@ -114,22 +113,7 @@ class OfflineAuthService(
             )
         }
 
-        val pendingCredential = createPendingOfflineCredential(
-            hyperZonePlayer = hyperZonePlayer,
-            registrationName = username,
-            normalizedName = normalizedName,
-            password = password
-        )
-        HyperZoneCredentialFlowProvider.get().submitCredential(hyperZonePlayer, pendingCredential)
-        runCatching {
-            HyperZoneCredentialFlowProvider.get().overVerify(hyperZonePlayer)
-        }.getOrElse { throwable ->
-            pendingCredential.pendingRegistrationIdOrNull()?.let(pendingRegistrations::remove)
-            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_BIND_PENDING_ERROR))
-        }
-
-        return Result(true, OfflineAuthMessages.REGISTER_BIND_PENDING)
-
+        return Result(false, OfflineAuthMessages.REGISTER_CREATE_BLOCKED)
     }
 
     private fun bindExistingProfile(
@@ -587,18 +571,6 @@ class OfflineAuthService(
         val prompts = ArrayList<Component>()
 
         if (entry == null) {
-            val registrationName = hyperPlayer.getSubmittedCredentials().filterIsInstance<OfflineHyperZoneCredential>()
-                .firstOrNull()?.getRegistrationName() ?: hyperPlayer.clientOriginalName
-            val normalizedName = registrationName.lowercase()
-            val hasPendingOfflineRegistration = hyperPlayer.getSubmittedCredentials()
-                .asSequence()
-                .filterIsInstance<OfflineHyperZoneCredential>()
-                .any { it.pendingRegistrationIdOrNull() != null && it.matchesNormalizedName(normalizedName) }
-            if (hasPendingOfflineRegistration) {
-                prompts += OfflineAuthMessages.PENDING_BIND_PROMPT
-                return prompts
-            }
-
             prompts += OfflineAuthMessages.REGISTER_REQUEST
             prompts += OfflineAuthMessages.LOGIN_OTHER_USERNAME_PROMPT
             return prompts
@@ -791,36 +763,6 @@ class OfflineAuthService(
         return repository.getByName(hyperPlayer.clientOriginalName.lowercase())
     }
 
-    private fun createPendingOfflineCredential(
-        hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
-        registrationName: String,
-        normalizedName: String,
-        password: String
-    ): OfflineHyperZoneCredential {
-        // With single-credential semantics, reuse the existing pending registration UUID if
-        // the player already holds an offline credential for the same name; otherwise create new.
-        val existingOffline = hyperZonePlayer.getSubmittedCredentials()
-            .filterIsInstance<OfflineHyperZoneCredential>()
-            .firstOrNull { it.pendingRegistrationIdOrNull() != null && it.matchesNormalizedName(normalizedName) }
-        val pendingRegistrationId = existingOffline?.pendingRegistrationIdOrNull() ?: UUID.randomUUID()
-
-        pendingRegistrations.put(
-            PendingOfflineRegistrationManager.PendingOfflineRegistration(
-                credentialUuid = pendingRegistrationId,
-                normalizedName = normalizedName,
-                passwordHash = hashPassword(password),
-                hashFormat = HASH_FORMAT_SHA256
-            )
-        )
-
-        return offlineCredential(
-            normalizedName = normalizedName,
-            registrationName = registrationName,
-            pendingRegistrationId = pendingRegistrationId
-        )
-    }
-
-
     private fun normalizeEmail(email: String): String? {
         val candidate = email.trim().lowercase(Locale.ROOT)
         if (!EMAIL_PATTERN.matches(candidate)) {
@@ -941,16 +883,13 @@ class OfflineAuthService(
     private fun offlineCredential(
         normalizedName: String,
         registrationName: String = normalizedName,
-        profileId: UUID? = null,
-        pendingRegistrationId: UUID? = null
+        profileId: UUID? = null
     ): OfflineHyperZoneCredential {
         return OfflineHyperZoneCredential(
             repository = repository,
-            pendingRegistrations = pendingRegistrations,
             registrationName = registrationName,
             normalizedName = normalizedName,
             knownProfileId = profileId,
-            pendingRegistrationId = pendingRegistrationId,
             passProfileCreateUuid = AuthOfflineConfigLoader.getConfig().main.passOfflineUuidToProfileResolve
         )
     }

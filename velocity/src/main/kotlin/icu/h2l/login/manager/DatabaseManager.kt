@@ -30,7 +30,6 @@ import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
 import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
-import icu.h2l.login.database.BindingCodeTable
 import icu.h2l.login.database.DatabaseConfig
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -52,7 +51,6 @@ class DatabaseManager(
      * 档案表实例
      */
     private val profileTable = ProfileTable(config.tablePrefix)
-    private val bindingCodeTable = BindingCodeTable(config.tablePrefix, profileTable)
 
     /**
      * 统一渠道密码表。
@@ -129,8 +127,6 @@ class DatabaseManager(
      */
     fun getProfileTable(): ProfileTable = profileTable
 
-    fun getBindingCodeTable(): BindingCodeTable = bindingCodeTable
-
     /**
      * 创建基础表（不包括 Entry 表）
      * Entry 表由事件系统自动创建
@@ -138,7 +134,7 @@ class DatabaseManager(
     fun createBaseTables() {
         transaction(database) {
             // 创建档案表
-            SchemaUtils.create(profileTable, bindingCodeTable)
+            SchemaUtils.create(profileTable)
             // 统一渠道密码表（三渠道共用）
             @Suppress("DEPRECATION")
             SchemaUtils.createMissingTablesAndColumns(channelPasswordTable, withLogs = false)
@@ -155,9 +151,9 @@ class DatabaseManager(
         proxy.eventManager.fire(TableSchemaEvent(TableSchemaAction.DROP_ALL)).join()
 
         executeTransaction {
-            // 删除统一渠道密码表、绑定码表与档案表
-            SchemaUtils.drop(channelPasswordTable, bindingCodeTable, profileTable)
-            warn { "已删除表: ${channelPasswordTable.tableName}, ${bindingCodeTable.tableName}, ${profileTable.tableName}" }
+            // 删除统一渠道密码表与档案表
+            SchemaUtils.drop(channelPasswordTable, profileTable)
+            warn { "已删除表: ${channelPasswordTable.tableName}, ${profileTable.tableName}" }
         }
 
         warn { "数据库表已全部删除！" }

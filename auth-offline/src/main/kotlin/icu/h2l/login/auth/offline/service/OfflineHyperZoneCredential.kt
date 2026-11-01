@@ -28,20 +28,18 @@ import java.util.*
 
 class OfflineHyperZoneCredential(
     private val repository: OfflineAuthRepository,
-    private val pendingRegistrations: PendingOfflineRegistrationManager,
     private val registrationName: String,
     private val normalizedName: String,
     private val knownProfileId: UUID? = null,
-    private val pendingRegistrationId: UUID? = null,
     private val passProfileCreateUuid: Boolean = false
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
-    override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
+    override val credentialId: String = normalizedName
 
     override fun getRegistrationName(): String = registrationName
 
     override fun getBoundProfileId(): UUID? {
-        return knownProfileId ?: repository.getByName(effectiveNormalizedName())?.profileId
+        return knownProfileId ?: repository.getByName(normalizedName)?.profileId
     }
 
     override fun getSuggestedProfileCreateUuid(): UUID? {
@@ -50,72 +48,6 @@ class OfflineHyperZoneCredential(
         }
 
         return ExtraUuidUtils.getNormalOfflineUUID(registrationName)
-    }
-
-    override fun validateBind(profileId: UUID): String? {
-        val currentName = effectiveNormalizedName()
-        val entry = repository.getByName(currentName)
-        val currentProfileId = entry?.profileId
-        if (currentProfileId != null && currentProfileId != profileId) {
-            return "离线认证凭证 $currentName 已绑定到其他 Profile: $currentProfileId"
-        }
-
-        val existingByProfile = repository.getByProfileId(profileId)
-        if (existingByProfile != null && !existingByProfile.name.equals(currentName, ignoreCase = true)) {
-            return "目标 Profile 已绑定其他离线认证记录: ${existingByProfile.name}"
-        }
-
-        if (currentProfileId == null && pendingRegistrationId != null && pendingRegistrations.get(pendingRegistrationId) == null) {
-            return "离线认证待绑定注册数据不存在或已失效，无法完成绑定"
-        }
-
-        if (currentProfileId == null && pendingRegistrationId == null) {
-            return "离线认证凭证缺少待绑定注册数据，无法完成绑定"
-        }
-
-        return null
-    }
-
-    override fun bind(profileId: UUID): Boolean {
-        val currentProfileId = getBoundProfileId()
-        if (currentProfileId == profileId) {
-            pendingRegistrationId?.let(pendingRegistrations::remove)
-            return true
-        }
-        if (currentProfileId != null) {
-            return false
-        }
-
-        val registrationId = pendingRegistrationId ?: return false
-        val pendingRegistration = pendingRegistrations.consume(registrationId) ?: return false
-        val created = repository.create(
-            name = pendingRegistration.normalizedName,
-            passwordHash = pendingRegistration.passwordHash,
-            hashFormat = pendingRegistration.hashFormat,
-            profileId = profileId,
-            email = pendingRegistration.email
-        )
-        if (created) {
-            return true
-        }
-
-        pendingRegistrations.put(pendingRegistration)
-        return repository.getByName(effectiveNormalizedName())?.profileId == profileId
-    }
-
-    @Suppress("unused")
-    internal fun pendingRegistrationIdOrNull(): UUID? {
-        return pendingRegistrationId
-    }
-
-    @Suppress("unused")
-    internal fun matchesNormalizedName(candidate: String): Boolean {
-        return effectiveNormalizedName().equals(candidate, ignoreCase = true)
-    }
-
-    private fun effectiveNormalizedName(): String {
-        val registrationId = pendingRegistrationId ?: return normalizedName
-        return pendingRegistrations.get(registrationId)?.normalizedName ?: normalizedName
     }
 
     companion object {

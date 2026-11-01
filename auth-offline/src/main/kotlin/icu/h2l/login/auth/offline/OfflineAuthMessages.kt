@@ -71,10 +71,8 @@ object OfflineAuthMessages {
         get() = render("register.bind-denied", "${PREFIX}§c检测到你已有档案，但当前未完成其他验证，暂时无法设置离线密码")
     val REGISTER_BIND_PROFILE_MISSING: Component
         get() = render("register.bind-profile-missing", "${PREFIX}§c未找到已关联档案，暂时无法设置离线密码")
-    val REGISTER_BIND_PENDING: Component
-        get() = render("register.bind-pending", "§a注册成功，但当前名称无法直接分配档案。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use <绑定码>；若没有可用绑定码，请联系管理员")
-    val REGISTER_BIND_PENDING_ERROR: Component
-        get() = render("register.bind-pending-error", "§c注册成功，但等待绑定时出现错误")
+    val REGISTER_CREATE_BLOCKED: Component
+        get() = render("register.create-blocked", "${PREFIX}§c注册失败：当前名称无法创建档案。若为用户名冲突，请修改游戏用户名后重试；或联系管理员")
 
     val LOGIN_USAGE: Component
         get() = render("login.usage", "${PREFIX}§e/login <密码> [验证码] §7或 §e/login as <用户名> <密码> [验证码]")
@@ -198,8 +196,6 @@ object OfflineAuthMessages {
         get() = render("totp.login-required", "${PREFIX}§e该账号已启用 TOTP，请使用 /login <密码> <验证码>；若要指定账号，请使用 /login as <用户名> <密码> <验证码>")
     val TOTP_LOGIN_HINT: Component
         get() = render("totp.login-hint", "${PREFIX}§7已启用 TOTP，请使用 /login <密码> <验证码> 登录；若要指定账号，请使用 /login as <用户名> <密码> <验证码>")
-    val PENDING_BIND_PROMPT: Component
-        get() = render("prompt.pending-bind", "§8[§6玩家系统§8] §7当前离线注册信息已暂存；若要绑定已有档案，请使用 /bindcode use <绑定码>，若没有可用绑定码请联系管理员")
     val LOGIN_OTHER_USERNAME_PROMPT: Component
         get() = render("prompt.login-other-username", "§8[§6玩家系统§8] §7若当前连接名不是你的离线账号名，可使用 /login as <用户名> <密码> [验证码]")
     val CHANGE_PASSWORD_PROMPT: Component

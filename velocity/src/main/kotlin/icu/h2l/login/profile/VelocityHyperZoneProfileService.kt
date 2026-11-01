@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap
  * - 读取既有 Profile；
  * - 创建新 Profile；
  * - attach 当前登录态玩家到既有 Profile；
- * - 处理与 attach / bind 相关的业务逻辑。
+ * - 处理与 attach 相关的业务逻辑。
  *
  * 重要约束：
  * - 除非需求被**明确、单独、强语义**地说明，否则这里**不应**新增“修改现有 Profile 数据”的接口；
@@ -163,44 +163,6 @@ class VelocityHyperZoneProfileService(
         return databaseHelper.validateTrustedProfileCreate(userName, resolvedUuid)
     }
 
-
-    override fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile {
-        val targetProfile = databaseHelper.getProfile(profileId)
-            ?: throw IllegalStateException("未找到绑定码对应的 Profile: $profileId")
-        val credentials = player.getSubmittedCredentials()
-        if (credentials.isEmpty()) {
-            throw IllegalStateException("玩家 ${player.clientOriginalName} 当前没有可绑定的凭证")
-        }
-
-        credentials.forEach { credential ->
-            val boundProfileId = credential.getBoundProfileId()
-            if (boundProfileId != null && boundProfileId != profileId) {
-                throw IllegalStateException(
-                    "凭证 ${credential.channelId}:${credential.credentialId} 已绑定到其他 Profile: $boundProfileId"
-                )
-            }
-
-            credential.validateBind(profileId)?.let { reason ->
-                throw IllegalStateException(reason)
-            }
-        }
-
-        credentials.forEach { credential ->
-            if (credential.getBoundProfileId() == profileId) {
-                return@forEach
-            }
-
-            if (!credential.bind(profileId)) {
-                throw IllegalStateException("绑定凭证失败: ${credential.channelId}:${credential.credentialId}")
-            }
-        }
-
-        credentials.forEach { credential ->
-            credential.onConsumed(profileId)
-        }
-
-        return targetProfile
-    }
 
     private fun resolveRequestedUuid(userName: String, uuid: UUID?): UUID {
         val remapPrefix = HyperZoneLoginMain.getCoreConfig().remap.prefix

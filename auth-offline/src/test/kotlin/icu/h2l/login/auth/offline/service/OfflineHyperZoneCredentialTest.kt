@@ -23,8 +23,8 @@ package icu.h2l.login.auth.offline.service
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
-import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
+import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.insert
@@ -36,9 +36,6 @@ import java.util.*
 
 class OfflineHyperZoneCredentialTest {
     private lateinit var repository: OfflineAuthRepository
-    private lateinit var pendingRegistrations: PendingOfflineRegistrationManager
-    private lateinit var credential: OfflineHyperZoneCredential
-    private lateinit var pendingRegistrationId: UUID
     private lateinit var database: Database
     private val profileId = UUID.fromString("11111111-1111-1111-1111-111111111111")
 
@@ -68,37 +65,73 @@ class OfflineHyperZoneCredentialTest {
         repository = OfflineAuthRepository(
             passwordRepository = icu.h2l.api.password.ChannelPasswordRepository(databaseManager, offlineAuthTable)
         )
-        pendingRegistrations = PendingOfflineRegistrationManager()
-        pendingRegistrationId = UUID.fromString("22222222-2222-2222-2222-222222222222")
-        pendingRegistrations.put(
-            PendingOfflineRegistrationManager.PendingOfflineRegistration(
-                credentialUuid = pendingRegistrationId,
-                normalizedName = "alice",
-                passwordHash = "hashed-password",
-                hashFormat = "sha256"
-            )
-        )
-        credential = OfflineHyperZoneCredential(
+    }
+
+    @Test
+    fun `credential exposes offline channel and normalized name`() {
+        val credential = OfflineHyperZoneCredential(
             repository = repository,
-            pendingRegistrations = pendingRegistrations,
+            registrationName = "Alice",
+            normalizedName = "alice"
+        )
+
+        assertEquals("offline", credential.channelId)
+        assertEquals("alice", credential.credentialId)
+        assertEquals("Alice", credential.getRegistrationName())
+    }
+
+    @Test
+    fun `bound profile id comes from repository by normalized name`() {
+        transaction(database) {
+            repository.create(
+                name = "alice",
+                passwordHash = "hashed-password",
+                hashFormat = "sha256",
+                profileId = profileId
+            )
+        }
+        val credential = OfflineHyperZoneCredential(
+            repository = repository,
+            registrationName = "Alice",
+            normalizedName = "alice"
+        )
+
+        assertEquals(profileId, credential.getBoundProfileId())
+    }
+
+    @Test
+    fun `known profile id is returned without repository lookup`() {
+        val credential = OfflineHyperZoneCredential(
+            repository = repository,
             registrationName = "Alice",
             normalizedName = "alice",
-            pendingRegistrationId = pendingRegistrationId,
-            passProfileCreateUuid = true
+            knownProfileId = profileId
         )
+
+        assertEquals(profileId, credential.getBoundProfileId())
     }
 
     @Test
     fun `suggested profile create uuid is null when passthrough is disabled`() {
-        val disabledCredential = OfflineHyperZoneCredential(
+        val credential = OfflineHyperZoneCredential(
             repository = repository,
-            pendingRegistrations = pendingRegistrations,
             registrationName = "Alice",
             normalizedName = "alice",
-            pendingRegistrationId = pendingRegistrationId,
             passProfileCreateUuid = false
         )
 
-        assertNull(disabledCredential.getSuggestedProfileCreateUuid())
+        assertNull(credential.getSuggestedProfileCreateUuid())
+    }
+
+    @Test
+    fun `suggested profile create uuid is the offline uuid when passthrough is enabled`() {
+        val credential = OfflineHyperZoneCredential(
+            repository = repository,
+            registrationName = "Alice",
+            normalizedName = "alice",
+            passProfileCreateUuid = true
+        )
+
+        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
     }
 }

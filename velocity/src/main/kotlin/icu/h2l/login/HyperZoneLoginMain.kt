@@ -42,10 +42,8 @@ import icu.h2l.api.util.ConfigFormatProvider
 import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.config.i18n.ConfigCommentI18nService
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
-import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
 import icu.h2l.login.config.*
-import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseHelper
 import icu.h2l.login.inject.network.VelocityNetworkModule
@@ -58,7 +56,6 @@ import icu.h2l.login.message.MessageService
 import icu.h2l.login.module.EmbeddedModuleRegistry
 import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.CredentialChannelRegistryImpl
-import icu.h2l.login.profile.ProfileBindingCodeService
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
 import icu.h2l.login.profile.WaitingAreaReleaseGateRegistryImpl
 import icu.h2l.login.util.isSnapshotPluginVersion
@@ -95,7 +92,6 @@ class HyperZoneLoginMain(
     lateinit var profileService: VelocityHyperZoneProfileService
     lateinit var backendRuntimeProfileCompensator: BackendRuntimeProfileCompensator
     lateinit var credentialChannelRegistry: CredentialChannelRegistryImpl
-    lateinit var bindingCodeService: ProfileBindingCodeService
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
     lateinit var waitingAreaReleaseGateRegistry: WaitingAreaReleaseGateRegistry
@@ -162,11 +158,6 @@ class HyperZoneLoginMain(
         loginManager = LoginManager(server, profileService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
         backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(profileService, logger)
-        bindingCodeService = ProfileBindingCodeService(
-            BindingCodeRepository(databaseManager, databaseManager.getBindingCodeTable()),
-            profileService,
-            loginManager,
-        )
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
         // 绑定等待区放行闸门注册表：模块可在 register(api) 阶段注册“离开等待区前”的放行校验
         // （例如 QQ 绑定白名单），核心层在 attach 完成后、真正离开等待区之前同步询问。
@@ -209,7 +200,6 @@ class HyperZoneLoginMain(
                 executor = ExitVServerCommand()
             )
         )
-        BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
         syncSlowTestCommands()
 
 //        最后加载模块
@@ -219,7 +209,7 @@ class HyperZoneLoginMain(
         // External modules (auth-offline, auth-yggd, data-merge) will be loaded as
         // separate Velocity plugins and should call `registerModule(...)` on this
         // main plugin during their own initialization.
-        val hzlCommand = HyperZoneLoginCommand(bindingCodeService).createCommand()
+        val hzlCommand = HyperZoneLoginCommand().createCommand()
         val hzlCommandMeta = proxy.commandManager.metaBuilder(hzlCommand).build()
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
         if (activeVServerAdapter?.needsBackendInitialProfileCompat() == true) {

@@ -47,18 +47,6 @@ class FloodgateHyperZoneCredential(
         return suggestedProfileCreateUuid
     }
 
-    override fun validateBind(profileId: UUID): String? {
-        val currentProfileId = getBoundProfileId()
-        if (currentProfileId != null && profileId != currentProfileId) {
-            return "Floodgate 凭证 $trustedName($xuid) 已绑定到其他 Profile: $currentProfileId"
-        }
-        return null
-    }
-
-    override fun bind(profileId: UUID): Boolean {
-        return repository.createOrUpdate(trustedName, xuid, profileId)
-    }
-
     fun matches(uuid: UUID): Boolean {
         return trustedUuid == uuid
     }

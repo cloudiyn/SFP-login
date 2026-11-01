@@ -38,14 +38,14 @@ object FloodgateMessages {
         return render(
             player,
             "registration-disabled",
-            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请使用 /bindcode use [绑定码]。"
+            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请联系管理员处理。"
         )
     }
 
     fun registrationDisabledByName(playerName: String): Component {
         return render(
             "registration-disabled",
-            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请使用 /bindcode use [绑定码]。",
+            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请联系管理员处理。",
             HyperZoneMessagePlaceholder.text("player", playerName)
         )
     }
@@ -54,14 +54,14 @@ object FloodgateMessages {
         return render(
             player,
             "create-blocked",
-            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。"
+            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。若当前是用户名冲突，请修改游戏用户名后再试；或联系管理员。"
         )
     }
 
     fun createBlockedByName(playerName: String): Component {
         return render(
             "create-blocked",
-            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。",
+            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。若当前是用户名冲突，请修改游戏用户名后再试；或联系管理员。",
             HyperZoneMessagePlaceholder.text("player", playerName)
         )
     }

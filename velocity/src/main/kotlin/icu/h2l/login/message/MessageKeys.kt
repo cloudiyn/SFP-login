@@ -34,33 +34,9 @@ object MessageKeys {
         const val WAITING_AREA_ONLY = "chat.waiting-area-only"
     }
 
-    object BindCode {
-        const val COMMAND_USAGE = "bindcode.command-usage"
-        const val COMMAND_USE_USAGE = "bindcode.command-use-usage"
-        const val GENERATE_NO_PROFILE = "bindcode.generate.no-profile"
-        const val GENERATE_FAILED = "bindcode.generate.failed"
-        const val EXISTING_HEADER = "bindcode.existing.header"
-        const val EXISTING_FOOTER = "bindcode.existing.footer"
-        const val GENERATED_HEADER = "bindcode.generated.header"
-        const val GENERATED_HOVER_COPY = "bindcode.generated.hover-copy"
-        const val GENERATED_FOOTER = "bindcode.generated.footer"
-        const val USE_VERIFY_FIRST = "bindcode.use.verify-first"
-        const val USE_ALREADY_BOUND = "bindcode.use.already-bound"
-        const val USE_NO_CREDENTIALS = "bindcode.use.no-credentials"
-        const val USE_EMPTY = "bindcode.use.empty"
-        const val USE_INVALID = "bindcode.use.invalid"
-        const val USE_BIND_FAILED = "bindcode.use.bind-failed"
-        const val USE_BIND_FAILED_WITH_REASON = "bindcode.use.bind-failed-with-reason"
-        const val USE_CONSUME_FAILED = "bindcode.use.consume-failed"
-        const val USE_ATTACH_FAILED = "bindcode.use.attach-failed"
-        const val USE_SUCCESS = "bindcode.use.success"
-    }
-
     object HzlCommand {
         const val USAGE_RELOAD = "hzl.usage.reload"
         const val USAGE_RE = "hzl.usage.re"
-        const val USAGE_BINDCODE_GENERATE = "hzl.usage.bindcode-generate"
-        const val USAGE_BINDCODE_USE = "hzl.usage.bindcode-use"
         const val USAGE_UUID = "hzl.usage.uuid"
         const val USAGE_PASSWORD = "hzl.usage.password"
         const val RELOADED = "hzl.reloaded"

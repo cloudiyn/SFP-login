@@ -28,7 +28,6 @@ import com.velocitypowered.api.command.BrigadierCommand
 import com.velocitypowered.api.command.CommandSource
 import com.velocitypowered.proxy.command.VelocityCommands
 import icu.h2l.api.command.*
-import icu.h2l.login.command.BindCodeBrigadierCommands
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -98,30 +97,6 @@ class HyperChatCommandManagerProxyFallbackTest {
         dispatcher.execute("login", source)
 
         assertArrayEquals(emptyArray(), capturedArgs)
-    }
-
-    @Test
-    fun `bindcode command keeps explicit subcommands and accepts special characters through raw bridge`() {
-        val registration = HyperChatCommandRegistration(
-            name = "bindcode",
-            aliases = setOf("bcode"),
-            executor = NoopExecutor,
-            brigadier = BindCodeBrigadierCommands.bindCode()
-        )
-        var capturedArgs: Array<String>? = null
-        val context = newContext(registration) { _, args ->
-            capturedArgs = args
-            1
-        }
-        val dispatcher = CommandDispatcher<CommandSource>()
-        val source = mockk<CommandSource>(relaxed = true)
-
-        dispatcher.register(HyperChatCommandManagerImpl.createProxyFallbackCommandTree(registration, context))
-        dispatcher.execute("bindcode use !@#CODE", source)
-
-        val root = requireNotNull(dispatcher.root.getChild("bindcode"))
-        assertEquals(setOf("generate", "use", VelocityCommands.ARGS_NODE_NAME), childNames(root))
-        assertArrayEquals(arrayOf("use", "!@#CODE"), capturedArgs)
     }
 
     @Test

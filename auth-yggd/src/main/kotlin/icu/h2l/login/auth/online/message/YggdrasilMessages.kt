@@ -36,7 +36,7 @@ object YggdrasilMessages {
         val service = HyperZoneMessageServiceProvider.getOrNull()
         return service?.render(player, "$NAMESPACE.registration-disabled-reason")
             ?.let { net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(it) }
-            ?: "当前渠道已被管理员禁止新玩家注册；若你已有档案，请使用 /bindcode use [绑定码]"
+            ?: "当前渠道已被管理员禁止新玩家注册；若你已有档案，请联系管理员处理。"
     }
 
     fun authInProgress(player: HyperZonePlayer): Component {
@@ -51,7 +51,7 @@ object YggdrasilMessages {
         return render(
             player,
             "profile-resolve-failed",
-            "$reason。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。",
+            "$reason。若当前是用户名冲突，请修改游戏用户名后再试；或联系管理员。",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }
@@ -60,7 +60,7 @@ object YggdrasilMessages {
         return render(
             player,
             "verify-complete-failed",
-            "认证成功，但 Profile 绑定失败：$reason。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。",
+            "认证成功，但 Profile 绑定失败：$reason。若当前是用户名冲突，请修改游戏用户名后再试；或联系管理员。",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }

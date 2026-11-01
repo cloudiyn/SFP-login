@@ -98,11 +98,6 @@ interface HyperZoneProfileService {
     fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile?
 
     /**
-     * 将玩家当前会话已提交的凭证绑定到指定 [profileId]。
-     */
-    fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile
-
-    /**
      * 当玩家在外部认证服务（如 Yggdrasil / Mojang）侧改名后，
      * 用认证返回的最新名称同步更新已绑定正式 Profile 的名称。
      *

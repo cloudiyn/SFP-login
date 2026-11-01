@@ -62,7 +62,6 @@ class OfflineAuthServiceRegisterTest {
     private lateinit var profileService: HyperZoneProfileService
     private lateinit var credentialFlow: HyperZoneCredentialFlow
     private lateinit var service: OfflineAuthService
-    private lateinit var pendingRegistrations: PendingOfflineRegistrationManager
     private lateinit var profileTable: ProfileTable
     private lateinit var offlineAuthTable: icu.h2l.api.db.table.ChannelPasswordTable
     private lateinit var database: Database
@@ -102,7 +101,6 @@ class OfflineAuthServiceRegisterTest {
         profileService = mockk()
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)
-        pendingRegistrations = PendingOfflineRegistrationManager()
 
         every { hyperZonePlayer.clientOriginalName } returns USERNAME
         every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
@@ -110,7 +108,6 @@ class OfflineAuthServiceRegisterTest {
         every { hyperZonePlayer.canBind() } returns true
         service = OfflineAuthService(
             repository = repository,
-            pendingRegistrations = pendingRegistrations,
             playerAccessor = TestPlayerAccessor(hyperZonePlayer),
             profileService = profileService,
             emailSender = NoopEmailSender,
@@ -283,68 +280,39 @@ class OfflineAuthServiceRegisterTest {
     }
 
     @Test
-    fun `register falls back to unbound credential flow when profile name conflicts prevent direct creation`() {
+    fun `register reports create blocked when profile creation is unavailable`() {
         every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
-        // 服务现在通过凭证与 ProfileService 交互；canCreate 返回 false 触发待绑定流程
         every { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == null
         }) } returns false
 
-        val credentialSlot = slot<OfflineHyperZoneCredential>()
-        every { credentialFlow.submitCredential(hyperZonePlayer, capture(credentialSlot)) } just Runs
-
         val result = service.register(player, VALID_PASSWORD)
-        val savedBeforeBind = repository.getByName(NORMALIZED_NAME)
 
-        assertTrue(result.success)
-        assertEquals(OfflineAuthMessages.REGISTER_BIND_PENDING, result.message)
-        assertNull(savedBeforeBind)
-        assertTrue(credentialSlot.isCaptured)
-        assertNotEquals(NORMALIZED_NAME, credentialSlot.captured.credentialId)
-        assertEquals(null, credentialSlot.captured.getBoundProfileId())
-        verify(exactly = 1) {
-            credentialFlow.submitCredential(hyperZonePlayer, match {
-                it.channelId == "offline" &&
-                    it.credentialId != NORMALIZED_NAME &&
-                    it.getBoundProfileId() == null
-            })
-        }
-        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
-
-        insertProfile()
-        assertEquals(null, credentialSlot.captured.validateBind(PROFILE.id))
-        assertTrue(credentialSlot.captured.bind(PROFILE.id))
-
-        val savedAfterBind = repository.getByProfileId(PROFILE.id)
-        assertNotNull(savedAfterBind)
-        assertEquals(NORMALIZED_NAME, savedAfterBind!!.name)
-        assertEquals(PROFILE.id, savedAfterBind.profileId)
+        assertFalse(result.success)
+        assertEquals(OfflineAuthMessages.REGISTER_CREATE_BLOCKED, result.message)
+        assertNull(repository.getByName(NORMALIZED_NAME))
+        verify(exactly = 0) { profileService.create(any()) }
+        verify(exactly = 0) { credentialFlow.submitCredential(any(), any()) }
     }
 
     @Test
-    fun `register pending credential keeps offline uuid suggestion when passthrough is enabled`() {
+    fun `register blocked by creation probes profile service with offline uuid when passthrough is enabled`() {
         enableOfflineUuidPassthrough()
 
         val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
         every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
-        // 服务现在通过凭证与 ProfileService 交互；passthrough 开启时凭证建议 UUID 为离线 UUID
         every { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
         }) } returns false
 
-        val credentialSlot = slot<OfflineHyperZoneCredential>()
-        every { credentialFlow.submitCredential(hyperZonePlayer, capture(credentialSlot)) } just Runs
-
         val result = service.register(player, VALID_PASSWORD)
 
-        assertTrue(result.success)
-        assertEquals(OfflineAuthMessages.REGISTER_BIND_PENDING, result.message)
-        assertTrue(credentialSlot.isCaptured)
-        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
-
+        assertFalse(result.success)
+        assertEquals(OfflineAuthMessages.REGISTER_CREATE_BLOCKED, result.message)
         verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
         }) }
+        verify(exactly = 0) { profileService.create(any()) }
     }
 
     private fun insertProfile() {

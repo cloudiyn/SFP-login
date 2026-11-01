@@ -232,10 +232,6 @@ class YggdrasilCredentialServiceTest {
         }
 
         override fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile? = null
-
-        override fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile {
-            throw UnsupportedOperationException("Not used in this test")
-        }
     }
 
     private class RecordingHyperZonePlayer(
