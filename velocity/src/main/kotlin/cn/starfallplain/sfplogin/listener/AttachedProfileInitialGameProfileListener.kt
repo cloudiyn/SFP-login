@@ -28,6 +28,7 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.util.buildAttachedIdentityGameProfile
 import cn.starfallplain.sfplogin.util.hasSemanticGameProfileDifference
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 /**
  * 当当前登录态已经 attach 正式档案时，
@@ -39,7 +40,7 @@ class AttachedProfileInitialGameProfileListener {
         val channel = event.connection.getNettyChannel()
         val hyperPlayer = HyperZonePlayerManager.getByChannelOrNull(channel)
             ?: return
-        val attachedProfile = SFPLoginMain.getInstance().profileService.getAttachedProfile(hyperPlayer)
+        val attachedProfile = sfpLoginMain().profileService.getAttachedProfile(hyperPlayer)
             ?: return
         val expectedProfile = buildAttachedIdentityGameProfile(
             currentGameProfile = event.gameProfile,

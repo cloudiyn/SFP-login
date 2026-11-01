@@ -31,6 +31,7 @@ import cn.starfallplain.sfplogin.api.log.debug
 import cn.starfallplain.sfplogin.SFPLoginMain
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 class LoginVerifyListener {
 
@@ -48,14 +49,14 @@ class LoginVerifyListener {
         }
 
         fun disconnectWithError(logMessage: String, userMessage: String) {
-            SFPLoginMain.getInstance().logger.error(logMessage)
+            sfpLoginMain().logger.error(logMessage)
             event.connection.disconnectWithMessage(Component.text(userMessage, NamedTextColor.RED))
         }
 
         try {
-            SFPLoginMain.getInstance().proxy.eventManager.fire(verifyEvent).join()
+            sfpLoginMain().proxy.eventManager.fire(verifyEvent).join()
         } catch (t: Throwable) {
-            SFPLoginMain.getInstance().logger.error("初始 GameProfile 扩展校验事件执行失败: ${t.message}", t)
+            sfpLoginMain().logger.error("初始 GameProfile 扩展校验事件执行失败: ${t.message}", t)
         }
 
         debug(HyperZoneDebugType.OUTPRE_TRACE) {

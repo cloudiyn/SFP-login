@@ -40,6 +40,16 @@ interface CredentialChannelRegistry {
     fun registerChannel(channelId: String): CredentialChannelAbility
 
     /**
+     * 注销一个凭证渠道 ID。
+     *
+     * 模块卸载或重新注册时应调用，避免旧模块占用的渠道 ID 残留。
+     *
+     * @param channelId 凭证渠道唯一标识
+     * @return 若该渠道此前已注册并被移除则返回 `true`
+     */
+    fun unregisterChannel(channelId: String): Boolean
+
+    /**
      * 判断指定凭证渠道 ID 是否已注册。
      */
     fun isRegistered(channelId: String): Boolean
@@ -69,6 +79,13 @@ object CredentialChannelRegistryProvider {
      */
     fun bind(registry: CredentialChannelRegistry) {
         this.registry = registry
+    }
+
+    /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        registry = null
     }
 
     /**

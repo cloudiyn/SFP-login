@@ -41,6 +41,7 @@ import io.netty.channel.ChannelFutureListener
 import java.net.InetSocketAddress
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import cn.starfallplain.sfplogin.coreConfig
 
 //封装了一个真实的 VelocityServerConnection，供 Velocity 内部字段（connectionInFlight/connectedServer）使用
 class OutPreBackendBridge(
@@ -175,7 +176,7 @@ class OutPreBackendBridge(
 
     private fun startHandshake(connection: MinecraftConnection) {
         val protocolVersion: ProtocolVersion = player.protocolVersion
-        val vServerConfig = SFPLoginMain.getCoreConfig().vServer
+        val vServerConfig = coreConfig().vServer
         val targetAddress = targetAddress()
         val handshake = HandshakePacket()
         handshake.setIntent(HandshakeIntent.LOGIN)

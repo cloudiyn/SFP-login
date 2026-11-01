@@ -55,6 +55,8 @@ import net.kyori.adventure.text.Component
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 /**
  * outpre = 在正常 Velocity 注册前，先把客户端连接桥接到真实认证服；
@@ -64,7 +66,7 @@ class OutPreVServerAuth(
     private val server: ProxyServer,
 ) : HyperZoneVServerAdapter {
     private val logger
-        get() = SFPLoginMain.getInstance().logger
+        get() = sfpLoginMain().logger
     private val states = ConcurrentHashMap<Channel, OutPreState>()
     private val initialJoinSessions = ConcurrentHashMap<Channel, OutPreInitialJoinSession>()
 
@@ -138,7 +140,7 @@ class OutPreVServerAuth(
     }
 
     fun beginInitialJoin(player: ConnectedPlayer, handler: OutPreAuthSessionHandler) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         trace(
             "beginInitialJoin start channel=${
@@ -157,7 +159,7 @@ class OutPreVServerAuth(
             return
         }
 
-        val outpreConfig = SFPLoginMain.getCoreConfig().vServer.outpre
+        val outpreConfig = coreConfig().vServer.outpre
         // 渠道密码门需要玩家在游戏内手动输入 /register、/login：
         // struck 直通模式会让客户端一直停在 LOGIN 阶段，玩家根本无法输入命令，
         // 最终被客户端自身的读超时断开。因此只要预判会弹密码门，就强制走等待区桥接。
@@ -233,14 +235,14 @@ class OutPreVServerAuth(
     }
 
     override fun reJoin(player: Player) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         if (configuredAuthAddress() == null) {
             player.sendMessage(messages.render(player, MessageKeys.BackendAuth.NO_AUTH_SERVER))
             return
         }
 
-        SFPLoginMain.getInstance().loginManager.dispatch(
+        sfpLoginMain().loginManager.dispatch(
             proxyPlayer = player,
             hyperZonePlayer = hyperPlayer,
             metadata = mapOf(
@@ -330,7 +332,7 @@ class OutPreVServerAuth(
     @Subscribe
     fun onServerPreConnect(event: ServerPreConnectEvent) {
         val player = event.player
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val state = states[player.getChannel()] ?: return
         if (!needsAuthServerProtection(state)) return
 
@@ -376,7 +378,7 @@ class OutPreVServerAuth(
         state: OutPreState,
         source: String
     ): CompletableFuture<LoginManager.Result> {
-        val dispatchFuture = SFPLoginMain.getInstance().loginManager.dispatch(
+        val dispatchFuture = sfpLoginMain().loginManager.dispatch(
             proxyPlayer = player,
             hyperZonePlayer = hyperPlayer,
             metadata = mapOf(
@@ -449,15 +451,15 @@ class OutPreVServerAuth(
     }
 
     private fun configuredAuthAddress(): java.net.InetSocketAddress? {
-        return SFPLoginMain.getCoreConfig().vServer.outpre.resolveOutpreAuthAddress()
+        return coreConfig().vServer.outpre.resolveOutpreAuthAddress()
     }
 
     private fun configuredAuthTargetLabel(): String {
-        return SFPLoginMain.getCoreConfig().vServer.outpre.outpreAuthTargetLabel()
+        return coreConfig().vServer.outpre.outpreAuthTargetLabel()
     }
 
     private fun rememberRequestedServerDuringAuth(): Boolean {
-        return SFPLoginMain.getCoreConfig().vServer.rememberRequestedServerDuringAuth
+        return coreConfig().vServer.rememberRequestedServerDuringAuth
     }
 
     private fun resolveTargetServerName(player: Player, state: OutPreState): String? =

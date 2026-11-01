@@ -86,6 +86,13 @@ object HyperZoneApiProvider {
     }
 
     /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        api = null
+    }
+
+    /**
      * 获取已绑定的 [HyperZoneApi]，若主插件尚未初始化完成则抛错。
      */
     fun get(): HyperZoneApi = api ?: error("SFP-login API is not available yet")

@@ -33,6 +33,7 @@ import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.message.MessageKeys
 import io.netty.channel.Channel
 import java.util.concurrent.ConcurrentHashMap
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 object PlayerAreaLifecycleListener {
     private enum class AreaState {
@@ -111,7 +112,7 @@ object PlayerAreaLifecycleListener {
     fun onServerConnected(event: ServerPostConnectEvent) {
         val player = event.player
         val hyperZonePlayer = HyperZonePlayerManager.getByPlayerOrNull(player) ?: return
-        val adapterWaiting = SFPLoginMain.getInstance().serverAdapter?.isPlayerInWaitingArea(player) == true
+        val adapterWaiting = sfpLoginMain().serverAdapter?.isPlayerInWaitingArea(player) == true
         val logicalWaiting = !hyperZonePlayer.hasAttachedProfile() || adapterWaiting
 
         if (logicalWaiting) {
@@ -171,7 +172,7 @@ object PlayerAreaLifecycleListener {
         hyperZonePlayer: HyperZonePlayer,
         reason: PlayerAreaTransitionReason,
     ) {
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         main.proxy.eventManager.fire(WaitingAreaEnterEvent(proxyPlayer, hyperZonePlayer, reason))
         main.messageService.send(hyperZonePlayer, MessageKeys.Player.ENTER_WAITING_AREA)
     }
@@ -181,7 +182,7 @@ object PlayerAreaLifecycleListener {
         hyperZonePlayer: HyperZonePlayer,
         reason: PlayerAreaTransitionReason,
     ) {
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         main.proxy.eventManager.fire(WaitingAreaLeaveEvent(proxyPlayer, hyperZonePlayer, reason))
         main.messageService.send(hyperZonePlayer, MessageKeys.Player.LEAVE_WAITING_AREA)
     }
@@ -191,7 +192,7 @@ object PlayerAreaLifecycleListener {
         hyperZonePlayer: HyperZonePlayer,
         reason: PlayerAreaTransitionReason,
     ) {
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         main.proxy.eventManager.fire(GameAreaEnterEvent(proxyPlayer, hyperZonePlayer, reason))
         main.messageService.send(hyperZonePlayer, MessageKeys.Player.ENTER_GAME_AREA)
     }
@@ -201,7 +202,7 @@ object PlayerAreaLifecycleListener {
         hyperZonePlayer: HyperZonePlayer,
         reason: PlayerAreaTransitionReason,
     ) {
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         main.proxy.eventManager.fire(GameAreaLeaveEvent(proxyPlayer, hyperZonePlayer, reason))
         main.messageService.send(hyperZonePlayer, MessageKeys.Player.LEAVE_GAME_AREA)
     }

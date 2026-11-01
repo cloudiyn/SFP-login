@@ -32,6 +32,7 @@ import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelOutboundHandlerAdapter
 import io.netty.channel.ChannelPromise
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 class ServerLoginSuccessPacketReplacer(
     private val channel: Channel
@@ -62,7 +63,7 @@ class ServerLoginSuccessPacketReplacer(
                 currentUsername = msg.username,
                 currentProperties = msg.properties
             )
-            SFPLoginMain.getInstance().proxy.eventManager.fire(event).join()
+            sfpLoginMain().proxy.eventManager.fire(event).join()
 
             if (event.rewritePacket) {
                 msg.uuid = event.uuid

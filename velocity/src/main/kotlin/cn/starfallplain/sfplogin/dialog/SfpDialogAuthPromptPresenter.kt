@@ -84,6 +84,13 @@ object DialogPromptRouter {
     fun clear(playerId: UUID) {
         targets.remove(playerId)
     }
+
+    /**
+     * 清空全部 dialog 会话（插件关闭时调用）。
+     */
+    fun clearAll() {
+        targets.clear()
+    }
 }
 
 /**
@@ -104,9 +111,23 @@ class SfpDialogAuthPromptPresenter(
         /** 默认超时（毫秒）：超时后关闭 dialog 并回退到聊天提示。 */
         const val DEFAULT_TIMEOUT_MILLIS = 120_000L
 
-        private val timer: ScheduledExecutorService by lazy {
-            Executors.newSingleThreadScheduledExecutor { runnable ->
-                Thread(runnable, "sfplogin-dialog-timeout").apply { isDaemon = true }
+        @Volatile
+        private var timerRef: ScheduledExecutorService? = null
+
+        private fun timer(): ScheduledExecutorService =
+            timerRef ?: synchronized(this) {
+                timerRef ?: Executors.newSingleThreadScheduledExecutor { runnable ->
+                    Thread(runnable, "sfplogin-dialog-timeout").apply { isDaemon = true }
+                }.also { timerRef = it }
+            }
+
+        /**
+         * 停止 dialog 超时调度线程（插件关闭时调用）。
+         */
+        fun shutdown() {
+            synchronized(this) {
+                timerRef?.shutdownNow()
+                timerRef = null
             }
         }
     }
@@ -184,7 +205,7 @@ class SfpDialogAuthPromptPresenter(
 
         private fun scheduleTimeout(timeoutMillis: Long) {
             if (timeoutMillis <= 0) return
-            timeoutTask = timer.schedule(
+            timeoutTask = timer().schedule(
                 {
                     if (closed.compareAndSet(false, true)) {
                         DialogPromptRouter.unregister(playerId, this)

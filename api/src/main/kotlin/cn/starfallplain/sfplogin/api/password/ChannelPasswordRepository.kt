@@ -491,6 +491,13 @@ object ChannelPasswordProvider {
         this.repository = repository
     }
 
+    /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        repository = null
+    }
+
     fun get(): ChannelPasswordRepository =
         repository ?: error("Channel password repository is not available yet")
 

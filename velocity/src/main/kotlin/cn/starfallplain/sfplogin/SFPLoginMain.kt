@@ -67,6 +67,9 @@ import cn.starfallplain.sfplogin.vServer.command.ExitVServerCommand
 import cn.starfallplain.sfplogin.vServer.command.OverVServerCommand
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreVServerAuth
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreAuthEndpointProbe
+import cn.starfallplain.sfplogin.dialog.DialogPromptRouter
+import cn.starfallplain.sfplogin.runtime.HyperZoneContext
+import cn.starfallplain.sfplogin.runtime.HyperZoneRuntime
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import java.nio.file.Files
 import java.nio.file.Path
@@ -101,28 +104,51 @@ class SFPLoginMain(
         get() = HyperChatCommandManagerImpl
 
 
-    companion object {
-        private lateinit var instance: SFPLoginMain
-        private lateinit var coreConfig: CoreConfig
-        private lateinit var startConfig: StartConfig
+    /**
+     * 本次运行的上下文：持有配置快照与全部已登记的生命周期资源。
+     *
+     * 取代原先挂在 `companion object` 上的 `instance / coreConfig / startConfig` 静态字段，
+     * 避免插件重载后残留上一次运行的服务实例。
+     */
+    val context: HyperZoneContext = HyperZoneRuntime.start(this)
 
-        @JvmStatic
-        fun getCoreConfig(): CoreConfig = coreConfig
+    private val coreConfig: CoreConfig
+        get() = context.requireCoreConfig()
 
-        @JvmStatic
-        fun getInstance(): SFPLoginMain = instance
-
-    }
-
-    init {
-        instance = this
-    }
+    private val startConfig: StartConfig
+        get() = context.requireStartConfig()
 
     @Suppress("unused", "UNUSED_PARAMETER")
     fun onEnable(event: ProxyInitializeEvent) {
+        try {
+            startRuntime(event)
+        } catch (t: Throwable) {
+            logger.error("SFP-login 启动失败，正在回滚已注册的资源", t)
+            onDisable()
+        }
+    }
+
+    /**
+     * 关闭本次运行：逆序释放 [context] 中登记的全部资源。
+     *
+     * `onEnable` 中途失败时也会走到这里，因此每一项释放动作都必须可重复执行。
+     */
+    fun onDisable() {
+        if (context.isClosing) {
+            return
+        }
+        logger.info("正在关闭 SFP-login ...")
+        HyperZoneRuntime.close()
+        logger.info("SFP-login 已关闭")
+    }
+
+    @Suppress("unused", "UNUSED_PARAMETER")
+    private fun startRuntime(event: ProxyInitializeEvent) {
         registerApiLogger()
+        context.onClose("config-comment-translator") { ConfigCommentTranslatorProvider.clear() }
+        context.onClose("config-format") { ConfigFormatProvider.reset() }
         // ── 第一步：加载启动前置配置（不受 i18n 影响，硬编码提示）──────────────────────
-        startConfig = StartConfigLoader.load(dataDirectory)
+        context.startConfig = StartConfigLoader.load(dataDirectory)
         if (!startConfig.ready) {
             logger.error("================================================================")
             logger.error("  你看起来似乎还没准备好，请先配置 start.conf 再继续使用 SFP-login")
@@ -140,26 +166,44 @@ class SFPLoginMain(
         messageService = MessageService(dataDirectory, logger)
         messageService.load(coreConfig.messages)
         HyperZoneMessageServiceProvider.bind(messageService)
+        context.onClose("provider:message-service") { HyperZoneMessageServiceProvider.unbind() }
         connectDatabase()
+        context.onClose("database") { databaseManager.disconnect() }
         // 创建基础表（Profile 表等）
         createBaseTables()
         // 绑定统一渠道密码存储（三渠道共用），供各认证子模块读取
         val channelPasswordRepository =
             cn.starfallplain.sfplogin.api.password.ChannelPasswordRepository(databaseManager, databaseManager.channelPasswordTable)
         cn.starfallplain.sfplogin.api.password.ChannelPasswordProvider.bind(channelPasswordRepository)
+        context.onClose("provider:channel-password-repository") {
+            cn.starfallplain.sfplogin.api.password.ChannelPasswordProvider.unbind()
+        }
         // 绑定统一渠道密码校验/会话服务（三渠道复用 offline 的校验与会话逻辑）
         cn.starfallplain.sfplogin.api.password.ChannelPasswordServiceProvider.bind(
             cn.starfallplain.sfplogin.api.password.ChannelPasswordService(channelPasswordRepository)
         )
+        context.onClose("provider:channel-password-service") {
+            cn.starfallplain.sfplogin.api.password.ChannelPasswordServiceProvider.unbind()
+        }
         profileService = VelocityHyperZoneProfileService(databaseHelper)
         HyperZoneProfileServiceProvider.bind(profileService)
+        context.onClose("provider:profile-service") { HyperZoneProfileServiceProvider.unbind() }
         loginManager = LoginManager(server, profileService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
+        context.onClose("provider:credential-flow") { HyperZoneCredentialFlowProvider.unbind() }
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
+        context.onClose("provider:credential-channel-registry") { CredentialChannelRegistryProvider.unbind() }
+        context.onClose("credential-channels") {
+            credentialChannelRegistry.getRegisteredChannelIds()
+                .forEach { credentialChannelRegistry.unregisterChannel(it) }
+        }
         // 绑定等待区放行闸门注册表：模块可在 register(api) 阶段注册“离开等待区前”的放行校验
         // （例如 QQ 绑定白名单），核心层在 attach 完成后、真正离开等待区之前同步询问。
         waitingAreaReleaseGateRegistry = WaitingAreaReleaseGateRegistryImpl()
         WaitingAreaReleaseGateRegistryProvider.bind(waitingAreaReleaseGateRegistry)
+        context.onClose("provider:waiting-area-release-gates") {
+            WaitingAreaReleaseGateRegistryProvider.unbind()
+        }
 
         activeVServerAdapter = null
 
@@ -182,6 +226,11 @@ class SFPLoginMain(
 
         HyperChatCommandManagerImpl.bindVServer(proxy, activeVServerAdapter)
         activeVServerAdapter?.let { proxy.eventManager.register(plugin, it) }
+        context.onClose("vserver-adapter") {
+            activeVServerAdapter?.let { proxy.eventManager.unregisterListener(plugin, it) }
+            activeVServerAdapter = null
+            HyperChatCommandManagerImpl.bindVServer(proxy, null)
+        }
 
         chatCommandManager.register(
             HyperChatCommandRegistration(
@@ -189,11 +238,17 @@ class SFPLoginMain(
                 executor = ExitVServerCommand()
             )
         )
+        context.onClose("chat-command:exit") { chatCommandManager.unregister("exit") }
         syncSlowTestCommands()
 
 //        最后加载模块
         // 注册 Java dialog 登录提示框（Minecraft 1.21.6+），基岩表单由 auth-floodgate 模块自行注册
         registerAuthPromptPresenters()
+        context.onClose("auth-prompt-presenters") {
+            AuthPromptPresenterRegistry.clear()
+            SfpDialogAuthPromptPresenter.shutdown()
+            DialogPromptRouter.clearAll()
+        }
         // Keep internal modules that are part of the main plugin
         registerModule(VelocityNetworkModule(), plugin)
         registerConfiguredEmbeddedModules()
@@ -203,11 +258,14 @@ class SFPLoginMain(
         val hzlCommand = HyperZoneLoginCommand().createCommand()
         val hzlCommandMeta = proxy.commandManager.metaBuilder(hzlCommand).build()
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
+        context.onClose("command:hzl") { proxy.commandManager.unregister("hzl") }
         proxy.eventManager.register(plugin, AttachedProfileInitialGameProfileListener())
         proxy.eventManager.register(plugin, LoginProfileReplaceDefaultListener())
         proxy.eventManager.register(plugin, LoginVerifyListener())
         proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
+        context.onClose("velocity-event-listeners") { proxy.eventManager.unregisterListeners(plugin) }
+        context.onClose("hyper-zone-players") { HyperZonePlayerManager.clearAll() }
 
         logInternalTestWarning()
 
@@ -379,7 +437,7 @@ class SFPLoginMain(
             },
             forceSaveHook = { _, firstCreation -> firstCreation || migrated },
         )
-        coreConfig = config
+        context.coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, config.messages.defaultLocale))
     }

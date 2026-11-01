@@ -27,17 +27,19 @@ import cn.starfallplain.sfplogin.api.command.HyperChatCommandInvocation
 import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.message.MessageKeys
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 class OverVServerCommand : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val source = invocation.source()
         if (source !is Player) {
             messages.send(source, MessageKeys.Common.ONLY_PLAYER)
             return
         }
 
-        if (!SFPLoginMain.getCoreConfig().debug.slowTest.enabled) {
+        if (!coreConfig().debug.slowTest.enabled) {
             messages.send(source, MessageKeys.Over.DISABLED)
             return
         }
@@ -60,9 +62,9 @@ class OverVServerCommand : HyperChatCommandExecutor {
         }
 
         runCatching {
-            SFPLoginMain.getInstance().loginManager.overVerify(hyperZonePlayer)
+            sfpLoginMain().loginManager.overVerify(hyperZonePlayer)
         }.onFailure { throwable ->
-            SFPLoginMain.getInstance().logger.warn(
+            sfpLoginMain().logger.warn(
                 "玩家 ${hyperZonePlayer.clientOriginalName} 通过 /over 完成慢测试验证失败: ${throwable.message}",
                 throwable
             )

@@ -62,6 +62,8 @@ import java.security.KeyPair
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.ThreadLocalRandom
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 class NettyLoginSessionHandler(
     private val injector: VelocityNetworkInjectorImpl,
@@ -255,7 +257,7 @@ class NettyLoginSessionHandler(
         val actualUuid = RemapUtils.resolveActualUuid(
             login.holderUuid,
             login.getUsername(),
-            SFPLoginMain.getCoreConfig().remap.prefix,
+            coreConfig().remap.prefix,
         )
         
         val openStartAuthEvent = OpenStartAuthEvent(
@@ -370,7 +372,7 @@ class NettyLoginSessionHandler(
         onlineMode: Boolean,
         serverIdHash: String,
     ): MinecraftSessionHandler {
-        val activeAdapter = SFPLoginMain.getInstance().serverAdapter
+        val activeAdapter = sfpLoginMain().serverAdapter
         if (activeAdapter is OutPreVServerAuth) {
 //            OutPre则使用我们的
             return OutPreAuthSessionHandler(

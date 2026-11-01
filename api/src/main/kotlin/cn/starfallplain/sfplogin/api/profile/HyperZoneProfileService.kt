@@ -131,6 +131,13 @@ object HyperZoneProfileServiceProvider {
     }
 
     /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        service = null
+    }
+
+    /**
      * 获取已绑定的 Profile 服务，若尚未初始化则抛错。
      */
     fun get(): HyperZoneProfileService = service ?: error("HyperZone profile service is not available yet")

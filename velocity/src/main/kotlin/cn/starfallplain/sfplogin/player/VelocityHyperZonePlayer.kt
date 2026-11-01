@@ -30,6 +30,7 @@ import net.kyori.adventure.text.Component
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 /**
  * `HyperZonePlayer` 的 Velocity 实现。
@@ -102,7 +103,7 @@ class VelocityHyperZonePlayer(
     }
 
     override fun hasAttachedProfile(): Boolean {
-        return SFPLoginMain.getInstance().profileService.hasAttachedProfile(this)
+        return sfpLoginMain().profileService.hasAttachedProfile(this)
     }
 
     override fun sendMessage(message: Component) {
@@ -123,7 +124,7 @@ class VelocityHyperZonePlayer(
     }
 
     override fun getAttachedGameProfile(): GameProfile {
-        val resolvedProfile = SFPLoginMain.getInstance().profileService.getAttachedProfile(this)
+        val resolvedProfile = sfpLoginMain().profileService.getAttachedProfile(this)
             ?: throw IllegalStateException("玩家 $clientOriginalName 尚未 attach Profile，无法获取正式游戏档案")
         return GameProfile(
             resolvedProfile.uuid,

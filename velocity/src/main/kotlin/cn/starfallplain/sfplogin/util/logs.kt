@@ -27,17 +27,19 @@ import cn.starfallplain.sfplogin.api.log.HyperZoneLogger
 import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.api.log.debug as apiDebug
 import cn.starfallplain.sfplogin.api.log.info as apiInfo
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 private object VelocityLoggerBridge : HyperZoneLogger {
     override fun info(message: String) {
-        val logger = SFPLoginMain.getInstance().logger
+        val logger = sfpLoginMain().logger
         if (logger.isInfoEnabled) {
             logger.info(message)
         }
     }
 
     override fun debug(type: HyperZoneDebugType, message: String) {
-        val logger = SFPLoginMain.getInstance().logger
+        val logger = sfpLoginMain().logger
         if (isDebugEnabled(type)) {
 //            不要改成debug，不需要logger开启debug
             logger.info("[DEBUG][{}] {}", type.name, message)
@@ -45,18 +47,18 @@ private object VelocityLoggerBridge : HyperZoneLogger {
     }
 
     override fun isDebugEnabled(type: HyperZoneDebugType): Boolean {
-        return SFPLoginMain.getCoreConfig().debug.isEnabled(type)
+        return coreConfig().debug.isEnabled(type)
     }
 
     override fun warn(message: String) {
-        SFPLoginMain.getInstance().logger.warn(message)
+        sfpLoginMain().logger.warn(message)
     }
 
     override fun error(message: String, throwable: Throwable?) {
         if (throwable != null) {
-            SFPLoginMain.getInstance().logger.error(message, throwable)
+            sfpLoginMain().logger.error(message, throwable)
         } else {
-            SFPLoginMain.getInstance().logger.error(message)
+            sfpLoginMain().logger.error(message)
         }
     }
 }

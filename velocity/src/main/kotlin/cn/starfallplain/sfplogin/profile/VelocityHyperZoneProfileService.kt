@@ -33,6 +33,8 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.database.DatabaseHelper
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 /**
  * Velocity 侧正式 Profile 服务。
@@ -124,7 +126,7 @@ class VelocityHyperZoneProfileService(
             "profileService.attachProfile player=${player.clientOriginalName} profileId=${profile.id} profileName=${profile.name} profileUuid=${profile.uuid}"
         }
         attachedProfiles[player] = profile.id
-        SFPLoginMain.getInstance().proxy.eventManager.fire(ProfileAttachedEvent(player, profile))
+        sfpLoginMain().proxy.eventManager.fire(ProfileAttachedEvent(player, profile))
         return profile
     }
 
@@ -165,7 +167,7 @@ class VelocityHyperZoneProfileService(
 
 
     private fun resolveRequestedUuid(userName: String, uuid: UUID?): UUID {
-        val remapPrefix = SFPLoginMain.getCoreConfig().remap.prefix
+        val remapPrefix = coreConfig().remap.prefix
         return uuid ?: RemapUtils.genUUID(userName, remapPrefix)
     }
 

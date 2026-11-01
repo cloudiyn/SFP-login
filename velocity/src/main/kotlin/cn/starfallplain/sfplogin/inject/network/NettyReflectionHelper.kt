@@ -33,6 +33,7 @@ import com.velocitypowered.proxy.connection.client.InitialConnectSessionHandler
 import com.velocitypowered.proxy.connection.client.LoginInboundConnection
 import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 /**
  * Velocity 内部反射访问的门面，保持与旧版调用方兼容的扩展函数 API。
@@ -66,7 +67,7 @@ object NettyReflectionHelper {
         return runCatching {
             VelocityInternalAccess.createConnectedPlayer(server, inbound, profile, onlineMode)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error("反射创建 ConnectedPlayer 失败。", ex)
+            sfpLoginMain().logger.error("反射创建 ConnectedPlayer 失败。", ex)
             throw ex
         }
     }
@@ -79,7 +80,7 @@ object NettyReflectionHelper {
         runCatching {
             VelocityInternalAccess.setPermissionFunction(player, function)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error("反射设置 ConnectedPlayer 权限函数失败。", ex)
+            sfpLoginMain().logger.error("反射设置 ConnectedPlayer 权限函数失败。", ex)
             throw ex
         }
     }
@@ -88,7 +89,7 @@ object NettyReflectionHelper {
         runCatching {
             VelocityInternalAccess.setConnectionInFlight(player, serverConnection)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error(
+            sfpLoginMain().logger.error(
                 "反射设置 ConnectedPlayer.connectionInFlight 失败。", ex
             )
             throw ex
@@ -99,7 +100,7 @@ object NettyReflectionHelper {
         runCatching {
             VelocityInternalAccess.setConnectedPlayerProfile(player, profile)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error(
+            sfpLoginMain().logger.error(
                 "反射设置 ConnectedPlayer.profile 失败。", ex
             )
             throw ex
@@ -116,7 +117,7 @@ object NettyReflectionHelper {
         return runCatching {
             VelocityInternalAccess.createAuthSessionHandler(server, inbound, profile, onlineMode, serverIdHash)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error("反射创建 AuthSessionHandler 失败。", ex)
+            sfpLoginMain().logger.error("反射创建 AuthSessionHandler 失败。", ex)
             throw ex
         }
     }
@@ -128,7 +129,7 @@ object NettyReflectionHelper {
         return runCatching {
             VelocityInternalAccess.createInitialConnectSessionHandler(player, server)
         }.getOrElse { ex ->
-            SFPLoginMain.getInstance().logger.error(
+            sfpLoginMain().logger.error(
                 "反射创建 InitialConnectSessionHandler 失败。", ex
             )
             throw ex

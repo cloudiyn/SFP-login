@@ -32,6 +32,7 @@ import cn.starfallplain.sfplogin.api.profile.HyperZoneProfileServiceProvider
 import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.message.MessageKeys
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 class HyperZoneLoginCommand {
     fun createCommand(): BrigadierCommand {
@@ -93,7 +94,7 @@ class HyperZoneLoginCommand {
     }
 
     private fun showUsage(sender: CommandSource) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             messages.send(sender, MessageKeys.HzlCommand.USAGE_RELOAD)
         }
@@ -105,7 +106,7 @@ class HyperZoneLoginCommand {
     }
 
     private fun sendPasswordUsage(sender: CommandSource) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         messages.send(sender, MessageKeys.HzlCommand.PASSWORD_USAGE)
     }
 
@@ -113,7 +114,7 @@ class HyperZoneLoginCommand {
      * 管理员按玩家名强制改密（跨渠道自动定位）。
      */
     private fun executeForcePassword(sender: CommandSource, playerName: String, newPassword: String): Int {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         if (newPassword.isBlank()) {
             messages.send(sender, MessageKeys.HzlCommand.PASSWORD_USAGE)
             return Command.SINGLE_SUCCESS
@@ -123,7 +124,7 @@ class HyperZoneLoginCommand {
         val changed = runCatching {
             service.forceSetPasswordByName(playerName, newPassword)
         }.getOrElse { error ->
-            SFPLoginMain.getInstance().logger.warn(
+            sfpLoginMain().logger.warn(
                 "强制改密失败 player=$playerName: ${error.message}", error
             )
             null
@@ -160,26 +161,26 @@ class HyperZoneLoginCommand {
     }
 
     private fun executeReload(sender: CommandSource): Int {
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         main.reloadRuntimeConfigs()
         main.messageService.send(sender, MessageKeys.HzlCommand.RELOADED)
         return Command.SINGLE_SUCCESS
     }
 
     private fun executeReAuth(sender: CommandSource): Int {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         if (sender !is Player) {
             messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
         messages.send(sender, MessageKeys.HzlCommand.REAUTH_START)
-        SFPLoginMain.getInstance().triggerVServerReJoinForPlayer(sender)
+        sfpLoginMain().triggerVServerReJoinForPlayer(sender)
         return Command.SINGLE_SUCCESS
     }
 
     private fun executeUuid(sender: CommandSource): Int {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         if (sender !is Player) {
             messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS

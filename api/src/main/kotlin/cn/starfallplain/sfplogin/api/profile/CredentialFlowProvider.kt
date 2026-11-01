@@ -46,6 +46,13 @@ object HyperZoneCredentialFlowProvider {
         this.flow = flow
     }
 
+    /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        flow = null
+    }
+
     fun get(): HyperZoneCredentialFlow =
         flow ?: error("HyperZone credential flow is not available yet")
 

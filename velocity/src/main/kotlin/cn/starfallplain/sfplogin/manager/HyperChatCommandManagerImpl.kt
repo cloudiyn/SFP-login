@@ -42,6 +42,7 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.message.MessageKeys
 import java.lang.invoke.MethodHandles
 import java.util.concurrent.ConcurrentHashMap
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 object HyperChatCommandManagerImpl : HyperChatCommandManager {
     private val availableCommandsRootNodeSetter by lazy {
@@ -82,7 +83,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
     }
 
     override fun executeChat(source: CommandSource, chat: String): Boolean {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val input = chat.trim()
         val hyperPlayer = (source as? Player)?.let { player ->
             runCatching {
@@ -275,7 +276,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         alias: String,
         args: Array<String>
     ): Int {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         if (source !is Player) {
             messages.send(source, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS

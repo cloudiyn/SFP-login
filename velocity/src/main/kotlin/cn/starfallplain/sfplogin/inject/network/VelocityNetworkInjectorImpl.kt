@@ -37,6 +37,7 @@ import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
 import io.netty.channel.Channel
 import io.netty.channel.ChannelInitializer
 import java.net.InetSocketAddress
+import cn.starfallplain.sfplogin.coreConfig
 
 private typealias VelocityEndpointMap = Multimap<InetSocketAddress, Endpoint>
 
@@ -137,7 +138,7 @@ class VelocityNetworkInjectorImpl(
         val old = getMethod.invoke(initializerHolder) as ChannelInitializer<Channel>
         setMethod.invoke(initializerHolder, object : ViaChannelInitializer(old) {
             override fun injectChannel(channel: Channel) {
-                if (SFPLoginMain.getCoreConfig().misc.killChatSession) {
+                if (coreConfig().misc.killChatSession) {
                     channel.pipeline().addLast("h2l_chat_session_killer", ChatSessionKillerPacketReplacer(channel))
                 }
                 channel.pipeline().addLast("sl_r_rpl", LoginProfilePacketReplacer(channel))

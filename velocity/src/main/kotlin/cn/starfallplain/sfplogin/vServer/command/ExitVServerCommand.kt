@@ -27,10 +27,11 @@ import cn.starfallplain.sfplogin.api.command.HyperChatCommandInvocation
 import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.message.MessageKeys
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 class ExitVServerCommand : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
-        val messages = SFPLoginMain.getInstance().messageService
+        val messages = sfpLoginMain().messageService
         val source = invocation.source()
         if (source !is Player) {
             messages.send(source, MessageKeys.Common.ONLY_PLAYER)
@@ -43,7 +44,7 @@ class ExitVServerCommand : HyperChatCommandExecutor {
             return
         }
 
-        val exited = SFPLoginMain.getInstance().serverAdapter?.exitWaitingArea(source) == true
+        val exited = sfpLoginMain().serverAdapter?.exitWaitingArea(source) == true
         if (!exited) {
             messages.send(source, MessageKeys.Exit.NOT_IN_WAITING_AREA)
             return

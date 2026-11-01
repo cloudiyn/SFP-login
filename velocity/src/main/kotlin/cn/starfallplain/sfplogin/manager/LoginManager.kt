@@ -56,6 +56,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 class LoginManager(
     private val server: ProxyServer,
@@ -105,7 +106,7 @@ class LoginManager(
     override fun overVerify(player: HyperZonePlayer) {
         val attachedProfile = profileService.attachVerifiedCredentialProfile(player)
         if (attachedProfile == null) {
-            player.sendMessage(SFPLoginMain.getInstance().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
+            player.sendMessage(sfpLoginMain().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
             return
         }
         // 渠道提示只是信息性文案，任何异常都不应影响已经完成的登录流程
@@ -123,7 +124,7 @@ class LoginManager(
      */
     private fun sendAuthChannelNotice(player: HyperZonePlayer) {
         val channelId = player.authChannelId?.takeUnless { it.isBlank() } ?: return
-        val messageService = SFPLoginMain.getInstance().messageService
+        val messageService = sfpLoginMain().messageService
         if (!messageService.hasKey(MessageKeys.Player.AUTH_CHANNEL_NOTICE)) {
             return
         }
@@ -201,7 +202,7 @@ class LoginManager(
         }
 
         val player = hyperPlayer.getProxyPlayerOrNull() ?: return
-        val main = SFPLoginMain.getInstance()
+        val main = sfpLoginMain()
         val attachedProfileId = profileService.getAttachedProfile(hyperPlayer)?.id ?: return
 
         val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, hyperPlayer)
@@ -281,7 +282,7 @@ class LoginManager(
             return
         }
 
-        val messageService = SFPLoginMain.getInstance().messageService
+        val messageService = sfpLoginMain().messageService
         player.sendMessage(messageService.render(player, MessageKeys.Player.PROFILE_CONFLICT_SELF))
         conflictingPlayers.forEach { conflictingPlayer ->
             if (conflictingPlayer === player) {

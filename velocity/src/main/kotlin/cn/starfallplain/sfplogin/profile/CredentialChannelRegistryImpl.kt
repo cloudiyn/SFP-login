@@ -50,6 +50,10 @@ class CredentialChannelRegistryImpl(
         return channelId in abilities
     }
 
+    override fun unregisterChannel(channelId: String): Boolean {
+        return abilities.remove(channelId) != null
+    }
+
     override fun getRegisteredChannelIds(): Set<String> {
         return abilities.keys.toSet()
     }

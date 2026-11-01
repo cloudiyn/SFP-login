@@ -41,6 +41,7 @@ import cn.starfallplain.sfplogin.vServer.outpre.handler.bridge.OutPreClientBridg
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.apache.logging.log4j.LogManager
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 private val logger = LogManager.getLogger(BridgeWaitingAreaJoinSession::class.java)
 
@@ -89,7 +90,7 @@ internal class BridgeWaitingAreaJoinSession(
                 if (throwable != null) {
 //                    报错 error
                     error(throwable){ "OutPreBridge connect failed: ${throwable.message}" }
-                    val messages = SFPLoginMain.getInstance().messageService
+                    val messages = sfpLoginMain().messageService
                     owner.clearInitialSession(player.getChannel(), state)
                     hyperPlayer.resumeMessageDelivery()
                     player.sendMessage(

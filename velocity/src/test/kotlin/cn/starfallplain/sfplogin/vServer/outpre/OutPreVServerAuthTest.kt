@@ -170,11 +170,8 @@ class OutPreVServerAuthTest {
         return field.getBoolean(this)
     }
 
-    private fun setCoreConfig(value: Any) {
-        val field = SFPLoginMain::class.java.getDeclaredField("coreConfig").apply {
-            isAccessible = true
-        }
-        field.set(null, value)
+    private fun setCoreConfig(value: cn.starfallplain.sfplogin.config.CoreConfig) {
+        cn.starfallplain.sfplogin.runtime.HyperZoneRuntime.require().coreConfig = value
     }
 
     private data class TestSession(

@@ -127,6 +127,13 @@ object WaitingAreaReleaseGateRegistryProvider {
     }
 
     /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        registry = null
+    }
+
+    /**
      * 获取已绑定的注册表，未初始化时抛错。
      */
     fun get(): WaitingAreaReleaseGateRegistry =

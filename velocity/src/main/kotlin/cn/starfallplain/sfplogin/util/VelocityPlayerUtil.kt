@@ -28,6 +28,7 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.listener.PlayerAreaLifecycleListener
 import cn.starfallplain.sfplogin.manager.HyperZonePlayerManager
 import cn.starfallplain.sfplogin.message.MessageKeys
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 internal data class ConnectMessageKeys(
     val noTarget: String,
@@ -62,7 +63,7 @@ internal fun connectPlayerToServer(
     resolvedServerName: String?,
     keys: ConnectMessageKeys,
 ): Boolean {
-    val messages = SFPLoginMain.getInstance().messageService
+    val messages = sfpLoginMain().messageService
     val hyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
 
     if (resolvedServerName == null) {

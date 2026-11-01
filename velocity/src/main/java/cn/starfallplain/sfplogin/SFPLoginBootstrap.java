@@ -90,6 +90,8 @@ public final class SFPLoginBootstrap implements HyperZoneApi {
 
     @Subscribe
     public void onDisable(ProxyShutdownEvent event) {
+        // 先关闭运行时（逆序释放 provider / 监听 / 命令 / 数据库），再停指标上报
+        this.runtime.onDisable();
         if (this.metrics != null) {
             this.metrics.shutdown();
             this.metrics = null;

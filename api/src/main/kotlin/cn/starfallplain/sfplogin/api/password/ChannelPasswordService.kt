@@ -232,6 +232,13 @@ object ChannelPasswordServiceProvider {
         this.service = service
     }
 
+    /**
+     * 解除绑定（插件卸载时调用），之后 [getOrNull] 返回 `null`。
+     */
+    fun unbind() {
+        service = null
+    }
+
     fun get(): ChannelPasswordService =
         service ?: error("Channel password service is not available yet")
 

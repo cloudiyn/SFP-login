@@ -68,6 +68,7 @@ import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import java.util.*
 import java.util.concurrent.CompletableFuture
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 private val logger: Logger = LogManager.getLogger(AuthSessionHandler::class.java)
 
@@ -199,7 +200,7 @@ open class OutPreAuthSessionHandlerLogic(
         }
 
         val attachedProfile = runCatching {
-            SFPLoginMain.getInstance().profileService.getAttachedProfile(hyperPlayer)
+            sfpLoginMain().profileService.getAttachedProfile(hyperPlayer)
                 ?: throw IllegalStateException("missing attached profile")
         }.getOrElse { throwable ->
             logger.error("OutPre finalization failed for {}: attached profile unavailable", connectedPlayer, throwable)

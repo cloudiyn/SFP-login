@@ -44,6 +44,7 @@ import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelOutboundHandlerAdapter
 import io.netty.channel.ChannelPromise
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 internal fun shouldRewriteLoginProfile(currentProfile: GameProfile, expectedProfile: GameProfile): Boolean {
     return hasSemanticGameProfileDifference(expectedProfile, currentProfile)
@@ -198,11 +199,11 @@ class LoginProfilePacketReplacer(
         player = association.player
         targetServerName = association.server.serverInfo.name
         hyperPlayer = HyperZonePlayerManager.getByPlayer(player)
-        config = SFPLoginMain.getInstance().proxy.configuration as VelocityConfiguration
+        config = sfpLoginMain().proxy.configuration as VelocityConfiguration
 
         val initialProfile = resolveInitialForwardingProfile()
         val event = LoginProfileReplaceEvent(hyperPlayer, targetServerName, initialProfile)
-        SFPLoginMain.getInstance().proxy.eventManager.fire(event).join()
+        sfpLoginMain().proxy.eventManager.fire(event).join()
 
         if (!event.modified) {
             retire()

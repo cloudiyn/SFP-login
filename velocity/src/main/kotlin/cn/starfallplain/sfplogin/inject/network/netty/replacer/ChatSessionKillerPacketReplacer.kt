@@ -35,6 +35,7 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelOutboundHandlerAdapter
 import io.netty.channel.ChannelPromise
 import io.netty.util.ReferenceCountUtil
+import cn.starfallplain.sfplogin.coreConfig
 
 /**
  * Shared backend-channel replacer for `killChatSession`.
@@ -116,7 +117,7 @@ class ChatSessionKillerPacketReplacer(
         player = resolvedPlayer
         val hyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
         chatSessionPacketId = ChatSessionUpdatePacketIdResolver.resolve(player.protocolVersion)
-        shouldKill = SFPLoginMain.getCoreConfig().misc.killChatSession
+        shouldKill = coreConfig().misc.killChatSession
                 && hyperPlayer?.isOnlinePlayer == true
                 && chatSessionPacketId != null
         return Unit

@@ -29,6 +29,7 @@ import cn.starfallplain.sfplogin.api.log.error
 import cn.starfallplain.sfplogin.api.log.warn
 import cn.starfallplain.sfplogin.api.player.HyperZonePlayer
 import cn.starfallplain.sfplogin.SFPLoginMain
+import cn.starfallplain.sfplogin.sfpLoginMain
 
 object ProfileSkinApplySupport {
     fun apply(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile? = null): GameProfile? {
@@ -40,7 +41,7 @@ object ProfileSkinApplySupport {
             ?: return java.util.concurrent.CompletableFuture.completedFuture(null)
         val event = ProfileSkinApplyEvent(hyperZonePlayer, resolvedBaseProfile)
 
-        return SFPLoginMain.getInstance().proxy.eventManager.fire(event)
+        return sfpLoginMain().proxy.eventManager.fire(event)
             .handle { _, throwable ->
                 if (throwable != null) {
                     error(throwable) { "Profile skin apply event failed: ${throwable.message}" }

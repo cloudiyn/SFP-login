@@ -35,6 +35,8 @@ import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.coreConfig
 
 object HyperZonePlayerManager : HyperZonePlayerAccessor {
     private val playersByChannel = ConcurrentHashMap<Channel, VelocityHyperZonePlayer>()
@@ -47,7 +49,7 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
 
     override fun create(channel: Channel, userName: String, uuid: UUID?, isOnline: Boolean): HyperZonePlayer {
         val finalUuid = uuid ?: run {
-            val prefix = SFPLoginMain.getCoreConfig().remap.prefix
+            val prefix = coreConfig().remap.prefix
             RemapUtils.genUUID(userName, prefix)
         }
         val createdPlayer = VelocityHyperZonePlayer(userName, finalUuid, isOnline)
@@ -77,10 +79,10 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
 
     fun remove(player: Player) {
         val channel = player.getChannel()
-        SFPLoginMain.getInstance().loginManager.clearCredentialsByChannel(channel)
+        sfpLoginMain().loginManager.clearCredentialsByChannel(channel)
         playersByChannel.remove(channel)?.let { removedPlayer ->
             runCatching {
-                SFPLoginMain.getInstance().profileService.clear(removedPlayer)
+                sfpLoginMain().profileService.clear(removedPlayer)
             }
         }
     }
@@ -90,5 +92,12 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
         val player = event.player
         getByPlayerOrNull(player)?.let { PlayerAreaLifecycleListener.onDisconnect(player, it) }
         remove(player)
+    }
+
+    /**
+     * 清空全部缓存的玩家会话（插件关闭时调用，避免上下文泄漏到下一次加载）。
+     */
+    fun clearAll() {
+        playersByChannel.clear()
     }
 }
