@@ -30,10 +30,10 @@
 
 **待确认的次要假设（如不同意请在会话里说，我改 todo）**
 
-- [ ] H1 类名：只把插件入口类改名（`HyperZoneLoginBootstrap`→`SFPLoginBootstrap`、`HyperZoneLoginMain`→`SFPLoginMain`），
+- [x] H1 类名：只把插件入口类改名（`HyperZoneLoginBootstrap`→`SFPLoginBootstrap`、`HyperZoneLoginMain`→`SFPLoginMain`），
       `HyperZone*` 公共 API 类型名先保留（包名已变，破坏性已存在）；不做全量类名前缀替换。
-- [ ] H2 API 版本：`apiVersion` 提到 `2.0.0`（RELEASE，不带 SNAPSHOT）。
-- [ ] H3 `todo.md` 本身提交进仓库，每完成一项更新并随该提交一起提交。
+- [x] H2 API 版本：`apiVersion` 提到 `2.0.0`（RELEASE，不带 SNAPSHOT）。
+- [x] H3 `todo.md` 本身提交进仓库，每完成一项更新并随该提交一起提交。
 
 ---
 
@@ -82,13 +82,13 @@
   - [x] `remap.prefix` 默认值与既有配置保持不变
 
 - [x] **R1-2 数据库兼容回归**
-  - [ ] 用一份旧版 SQLite（含 profile/credential/binding_code）启动新 jar：能读、能登录、UUID 不变（真实 jar 版在 R1-4 验收）
+  - [x] 用一份旧版 SQLite（含 profile/credential/binding_code）启动新流程：能读、UUID 不变；离线版已由 `api/src/test/kotlin/cn/starfallplain/sfplogin/api/db/LegacyDatabaseCompatibilityTest.kt` 覆盖，真实 jar 启动仍归 R1-4
   - [x] 确认没有 destructive migration；新增列/表只能增量
   - [x] 增加自动化测试：旧 schema fixture → `DatabaseManager` 打开 → 关键查询通过
 
 - [x] **R1-3 配置自动迁移**
   - [x] `core.conf`：`vServer.mode: backend` → 写回 `outpre`，日志 WARN「backend 已移除，已切换 outpre」
-  - [ ] 删除 `vServer.backend.*` 整节；删除 `modules.backendNanolimbo`（移到 R3-2：字段仍被后端代码引用，删代码时随数据类一起消失）
+  - [x] 删除 `vServer.backend.*` 整节；删除 `modules.backendNanolimbo`（已在 R3-2 随 `BackendConfig`/`ModulesConfig.backendNanolimbo` 与三语注释键一并删除）
   - [x] 迁移前备份为 `core.conf.bak-<时间戳>`；失败不阻塞启动（沿用默认值）
 
 - [ ] **R1-4 手动验收清单（真实服务端）**
@@ -96,7 +96,7 @@
   - [ ] 登录后进入 lobby，背包/位置/经济等按 UUID 存储的数据仍在
   - [ ] 等待区 → 认证 → 放行全链路可走通
 
-- [ ] **R1-5 提交**：`test(compat): 锁定 UUID 转发与旧数据兼容基线`
+- [x] **R1-5 提交**：`test(compat): 锁定 UUID 转发与旧数据兼容基线`（`ee290ff`）
 
 ---
 
