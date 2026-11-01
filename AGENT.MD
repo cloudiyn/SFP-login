@@ -214,3 +214,18 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
 - 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/dialog/`、
   `api/src/test/kotlin/cn/starfallplain/sfplogin/api/auth/AuthPromptPresenterRegistryTest.kt`、
   `auth-floodgate/src/test/kotlin/cn/starfallplain/sfplogin/auth/floodgate/prompt/FloodgateAuthPromptPresenterTest.kt`。
+
+## 16. 连接交接与非阻塞登录包改写
+
+- **禁止在 Netty 事件循环线程上 `join()` 异步结果**：`eventManager.fire(...)`、皮肤解析、外部档案查询都必须
+  先挂起、结果回到事件循环后再放行。阻塞事件循环会连带卡住同一循环上的其它连接。
+- **统一状态机**：`velocity/.../runtime/ConnectionHandoff`，状态为
+  `JOIN → HELD → VERIFIED → RELEASED`，失败走 `FAILED`。`beginHold()` 只允许首次进入扣留；
+  扣留期间的出站写按登记顺序入队，`release()` 在事件循环线程按序执行；`markFailed()` 丢弃队列。
+- **改写点**：`ServerLoginSuccessPacketReplacer`、`LoginProfilePacketReplacer` 都用它把“等事件结果”
+  换成“排队 + 放行”，客户端看到的包顺序与阻塞版本一致。
+- **线程约束**：`ProfileSkinApplySupport.apply()` 会阻塞等待，只能在工作线程调用；检测到事件循环线程会
+  记错误并退化为不含皮肤的档案（避免卡死）。异步链上请用 `applyAsync`。
+- 事件监听器（如 Floodgate 档案替换）可能同步等待皮肤解析，因此 `LoginProfileReplaceEvent`
+  必须通过 `thenComposeAsync` 在工作线程触发，不能在事件循环上触发。
+- 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/runtime/ConnectionHandoffTest.kt`。

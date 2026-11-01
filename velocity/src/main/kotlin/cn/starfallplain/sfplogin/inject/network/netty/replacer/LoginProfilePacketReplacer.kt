@@ -45,6 +45,10 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelOutboundHandlerAdapter
 import io.netty.channel.ChannelPromise
 import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.player.ProfileSkinApplySupport
+import cn.starfallplain.sfplogin.runtime.ConnectionHandoff
+import cn.starfallplain.sfplogin.runtime.HandoffState
+import java.util.concurrent.CompletableFuture
 
 internal fun shouldRewriteLoginProfile(currentProfile: GameProfile, expectedProfile: GameProfile): Boolean {
     return hasSemanticGameProfileDifference(expectedProfile, currentProfile)
@@ -73,21 +77,138 @@ internal fun decodeModernForwardingVersion(content: ByteBuf?): Int? {
 /**
  * 重写发往后端的登录档案包（事件驱动版）。
  *
- * 在首次 write 时触发 [LoginProfileReplaceEvent]，初始档案由
- * [resolveInitialForwardingProfile] 解析；监听器可修改事件中的档案并将 modified 置为 true。
- * - modified = false：说明无需补丁，立刻自移除；
- * - modified = true：使用事件中的档案替换登录阶段下发给后端的档案包，并输出替换成功日志。
+ * 首次 write 时触发 [LoginProfileReplaceEvent]，初始档案（可能含皮肤）异步解析后交给事件；
+ * 监听器可修改事件中的档案并将 modified 置为 true。
+ * - modified = false：说明无需补丁，自移除并按原样放行；
+ * - modified = true：使用事件中的档案替换登录阶段下发给后端的档案包。
+ *
+ * 解析过程通过 [ConnectionHandoff] 挂起：事件循环线程只负责排队与在结果就绪后按序放行，
+ * 不会因为等待事件或皮肤解析而阻塞。
  */
+
 class LoginProfilePacketReplacer(
     private val channel: Channel
 ) : ChannelOutboundHandlerAdapter() {
+
+    private val handoff = ConnectionHandoff("login-profile")
+
     private lateinit var player: Player
     private lateinit var hyperPlayer: HyperZonePlayer
     private lateinit var targetServerName: String
     private lateinit var config: VelocityConfiguration
 
-    /** 由事件监听器确认后的最终替换档案；仅在 initFields 成功（modified=true）后有效。 */
+    /** 由事件监听器确认后的最终替换档案；仅在 [replaceEnabled] 为 true 后有效。 */
     private lateinit var replacedProfile: GameProfile
+
+    @Volatile
+    private var replaceEnabled = false
+
+    @Volatile
+    private var initialized = false
+
+    override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
+        if (initialized) {
+            forward(ctx, msg, promise)
+            return
+        }
+        if (handoff.state() != HandoffState.JOIN) {
+            handoff.defer { forward(ctx, msg, promise) }
+            return
+        }
+        if (!beginResolution(ctx)) {
+            forward(ctx, msg, promise)
+            return
+        }
+        handoff.defer { forward(ctx, msg, promise) }
+    }
+
+    /**
+     * 首次出站写时抓取连接上下文并发起异步解析。
+     *
+     * @return false 表示当前连接还取不到后端连接关联，按原样放行；true 表示已进入交接流程。
+     */
+    private fun beginResolution(ctx: ChannelHandlerContext): Boolean {
+        val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return false
+        val association = connection.association as? ServerConnection ?: return false
+
+        player = association.player
+        targetServerName = association.server.serverInfo.name
+        hyperPlayer = HyperZonePlayerManager.getByPlayer(player)
+        config = sfpLoginMain().proxy.configuration as VelocityConfiguration
+
+        if (!handoff.beginHold()) {
+            return true
+        }
+
+        // 必须切到工作线程：事件监听器（如 Floodgate 档案替换）可能同步等待皮肤解析，
+        // 若在事件循环上触发就会把该连接以及同循环上的其它连接一起卡住。
+        val future = resolveInitialForwardingProfileAsync().thenComposeAsync { initialProfile ->
+            if (initialProfile == null) {
+                return@thenComposeAsync CompletableFuture.completedFuture<LoginProfileReplaceEvent?>(null)
+            }
+            sfpLoginMain().proxy.eventManager.fire(
+                LoginProfileReplaceEvent(hyperPlayer, targetServerName, initialProfile)
+            )
+        }
+
+        future.whenComplete { event, throwable ->
+            ctx.executor().execute { completeResolution(ctx, event, throwable) }
+        }
+        return true
+    }
+
+    private fun completeResolution(
+        ctx: ChannelHandlerContext,
+        event: LoginProfileReplaceEvent?,
+        throwable: Throwable?,
+    ) {
+        if (throwable != null) {
+            error(throwable) { "LoginProfilePacketReplacer resolution failed: ${throwable.message}" }
+            handoff.markFailed()
+            fireException(ctx, throwable)
+            return
+        }
+
+        try {
+            if (event != null && event.modified) {
+                replacedProfile = event.profile
+                replaceEnabled = true
+                initialized = true
+                info {
+                    "[LoginProfileReplace] 替换成功: server=$targetServerName name=${replacedProfile.name} uuid=${replacedProfile.id}"
+                }
+            } else {
+                retire()
+            }
+        } catch (t: Throwable) {
+            error(t) { "LoginProfilePacketReplacer resolution failed: ${t.message}" }
+            handoff.markFailed()
+            fireException(ctx, t)
+            return
+        }
+
+        handoff.markVerified()
+        handoff.release()
+    }
+
+    private fun forward(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
+        try {
+            val outgoing = if (replaceEnabled) replaceMessage(msg) else msg
+            ctx.write(outgoing, promise)
+        } catch (t: Throwable) {
+            error(t) { "LoginProfilePacketReplacer write failed: ${t.message}" }
+            fireException(ctx, t)
+            retire()
+        }
+    }
+
+    private fun fireException(ctx: ChannelHandlerContext, throwable: Throwable) {
+        try {
+            ctx.fireExceptionCaught(throwable)
+        } catch (_: Throwable) {
+            // ignore
+        }
+    }
 
     private fun replaceMessage(msg: Any?): Any? {
         return when (msg) {
@@ -101,9 +222,8 @@ class LoginProfilePacketReplacer(
     }
 
     private fun retire() {
-        channel.pipeline().remove(this)
+        runCatching { channel.pipeline().remove(this) }
     }
-
 
     private fun genLoginPluginResponse(msg: LoginPluginResponsePacket): LoginPluginResponsePacket {
 //        不判定 CTD兼容，理论上也不需要判断
@@ -154,66 +274,19 @@ class LoginProfilePacketReplacer(
     /**
      * 计算本次连接应向后端转发的初始档案（供事件的 initialProfile 字段使用）。
      *
-     * 仅根据玩家是否处于等待区来决定使用临时档案还是正式档案；
-     * 登录服（isLoginServerTarget）的临时档案替换由 backend 模块的专用监听器负责。
+     * 仅根据玩家是否处于等待区来决定使用临时档案还是正式档案，并把皮肤解析放在
+     * [ProfileSkinApplySupport.applyAsync] 的异步链上，避免在事件循环里等待。
      */
-    private fun resolveInitialForwardingProfile(): GameProfile {
+    private fun resolveInitialForwardingProfileAsync(): CompletableFuture<GameProfile?> {
         if (!hyperPlayer.hasAttachedProfile()) {
-            return hyperPlayer.getTemporaryGameProfile()
+            return CompletableFuture.completedFuture(hyperPlayer.getTemporaryGameProfile())
         }
-        return requireNotNull(hyperPlayer.getApplyGameProfile()) {
-            "Formal profile is unavailable while resolving initial forwarding profile for clientOriginal=${hyperPlayer.clientOriginalName}"
-        }
-    }
-
-    override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
-        try {
-            initFields(ctx) ?: run {
-                super.write(ctx, msg, promise)
-                return
+        return runCatching { ProfileSkinApplySupport.applyAsync(hyperPlayer) }
+            .getOrElse { throwable ->
+                debug(HyperZoneDebugType.NETWORK_REWRITE) {
+                    "[ProfileSkinFlow] initial profile resolution failed: ${throwable.message}"
+                }
+                CompletableFuture.completedFuture(null)
             }
-
-            val replaced = replaceMessage(msg)
-            super.write(ctx, replaced, promise)
-        } catch (t: Throwable) {
-            error(t) { "LoginProfilePacketReplacer write failed: ${t.message}" }
-            try {
-                ctx.fireExceptionCaught(t)
-            } catch (_: Throwable) {
-                // ignore
-            }finally {
-//                出错了就马上跑掉
-                retire()
-            }
-        }
-    }
-
-    private fun initFields(ctx: ChannelHandlerContext): Unit? {
-        if (::player.isInitialized) {
-            return Unit
-        }
-
-        val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return null
-        val association = connection.association as? ServerConnection ?: return null
-
-        player = association.player
-        targetServerName = association.server.serverInfo.name
-        hyperPlayer = HyperZonePlayerManager.getByPlayer(player)
-        config = sfpLoginMain().proxy.configuration as VelocityConfiguration
-
-        val initialProfile = resolveInitialForwardingProfile()
-        val event = LoginProfileReplaceEvent(hyperPlayer, targetServerName, initialProfile)
-        sfpLoginMain().proxy.eventManager.fire(event).join()
-
-        if (!event.modified) {
-            retire()
-            return null
-        }
-
-        replacedProfile = event.profile
-        info {
-            "[LoginProfileReplace] 替换成功: server=$targetServerName name=${replacedProfile.name} uuid=${replacedProfile.id}"
-        }
-        return Unit
     }
 }

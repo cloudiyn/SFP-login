@@ -32,8 +32,28 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import cn.starfallplain.sfplogin.sfpLoginMain
 
 object ProfileSkinApplySupport {
+
+    /**
+     * 同步解析最终档案（含皮肤）。
+     *
+     * 内部会等待事件总线与皮肤提供者返回，**禁止在 Netty 事件循环线程上调用**：那会阻塞该连接
+     * 以及同一循环上的所有连接。事件回调或异步链里请改用 [applyAsync] 并组合后续步骤
+     * （见 [cn.starfallplain.sfplogin.runtime.ConnectionHandoff] 与 `LoginProfilePacketReplacer`）。
+     *
+     * 若检测到在事件循环线程上被调用，会记录错误并退化为不含皮肤的档案，避免把连接卡死。
+     */
     fun apply(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile? = null): GameProfile? {
+        if (isOnEventLoopThread()) {
+            error {
+                "[ProfileSkinFlow] apply() called on event loop thread, falling back without textures; use applyAsync instead: clientOriginal=${hyperZonePlayer.clientOriginalName}"
+            }
+            return baseProfile ?: runCatching { hyperZonePlayer.getAttachedGameProfile() }.getOrNull()
+        }
         return applyAsync(hyperZonePlayer, baseProfile).join()
+    }
+
+    private fun isOnEventLoopThread(): Boolean {
+        return Thread.currentThread() is io.netty.util.concurrent.FastThreadLocalThread
     }
 
     fun applyAsync(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile? = null): java.util.concurrent.CompletableFuture<GameProfile?> {
