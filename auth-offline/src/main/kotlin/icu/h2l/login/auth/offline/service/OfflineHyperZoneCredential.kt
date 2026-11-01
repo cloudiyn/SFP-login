@@ -103,52 +103,6 @@ class OfflineHyperZoneCredential(
         return repository.getByName(effectiveNormalizedName())?.profileId == profileId
     }
 
-    /**
-     * 创建一个新名称的凭证副本，同时同步更新 [PendingOfflineRegistrationManager] 中的待绑定数据。
-     *
-     * 旧凭证保持不变；调用方应先销毁旧凭证，再提交返回的新凭证。
-     */
-    fun withNewName(newName: String): OfflineHyperZoneCredential {
-        val newNormalizedName = newName.lowercase()
-        pendingRegistrationId?.let { id ->
-            pendingRegistrations.rename(id, newNormalizedName)
-        }
-        return OfflineHyperZoneCredential(
-            repository = repository,
-            pendingRegistrations = pendingRegistrations,
-            registrationName = newName,
-            normalizedName = newNormalizedName,
-            knownProfileId = knownProfileId,
-            pendingRegistrationId = pendingRegistrationId,
-            passProfileCreateUuid = passProfileCreateUuid
-        )
-    }
-
-    override fun withRegistrationName(newRegistrationName: String): OfflineHyperZoneCredential {
-        return withNewName(newRegistrationName)
-    }
-
-    /**
-     * 创建一个关闭 UUID 建议的凭证副本，用于 ReUuid 流程。
-     *
-     * 凭证不再建议特定 UUID，交由核心 ReUuid 逻辑选取新 UUID。
-     */
-    fun withReUuid(): OfflineHyperZoneCredential {
-        return OfflineHyperZoneCredential(
-            repository = repository,
-            pendingRegistrations = pendingRegistrations,
-            registrationName = registrationName,
-            normalizedName = normalizedName,
-            knownProfileId = knownProfileId,
-            pendingRegistrationId = pendingRegistrationId,
-            passProfileCreateUuid = false
-        )
-    }
-
-    override fun withReUuidRequest(): OfflineHyperZoneCredential {
-        return withReUuid()
-    }
-
     @Suppress("unused")
     internal fun pendingRegistrationIdOrNull(): UUID? {
         return pendingRegistrationId

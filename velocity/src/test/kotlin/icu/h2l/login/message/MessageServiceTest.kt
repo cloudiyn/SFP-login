@@ -56,10 +56,11 @@ class MessageServiceTest {
     }
 
     @Test
-    fun `falls back to english when configured locale misses a key`() {
+    fun `fills missing keys from bundled defaults of the same locale`() {
         val service = newService()
         service.load(MessagesConfig())
 
+        // 用户配置只保留一个空的 common 节点：缺失的 key 应由内置默认补齐，而不是判定为缺失
         Files.writeString(
             tempDir.resolve("messages/zh_cn.conf"),
             "common {}",
@@ -69,8 +70,38 @@ class MessageServiceTest {
         service.load(MessagesConfig())
 
         assertEquals(
-            "<red>This command can only be used by players.</red>",
+            "<red>该命令只能由玩家执行。</red>",
             service.resolveTemplate("zh_cn", MessageKeys.Common.ONLY_PLAYER)
+        )
+    }
+
+    @Test
+    fun `user overrides take precedence over bundled defaults`() {
+        val service = newService()
+        service.load(MessagesConfig())
+
+        Files.writeString(
+            tempDir.resolve("messages/zh_cn.conf"),
+            "common { only-player = \"<red>自定义文案</red>\" }",
+            StandardCharsets.UTF_8
+        )
+
+        service.load(MessagesConfig())
+
+        assertEquals(
+            "<red>自定义文案</red>",
+            service.resolveTemplate("zh_cn", MessageKeys.Common.ONLY_PLAYER)
+        )
+    }
+
+    @Test
+    fun `reports missing for keys absent from every locale`() {
+        val service = newService()
+        service.load(MessagesConfig())
+
+        assertTrue(
+            service.resolveTemplate("zh_cn", "player.does-not-exist-at-all")
+                .contains("Missing message")
         )
     }
 

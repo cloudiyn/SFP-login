@@ -21,16 +21,22 @@
 
 package icu.h2l.login.auth.floodgate.db
 
+import icu.h2l.api.log.warn
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthEntry
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthTable
-import icu.h2l.api.log.warn
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.util.*
 
+/**
+ * Floodgate 绑定记录仓库。
+ *
+ * 只负责 xuid ↔ profileId ↔ name 的**身份绑定**。
+ * 本地密码已统一交由 offline 渠道的密码体系管理，本仓库不再涉及任何密码读写。
+ */
 open class FloodgateAuthRepository(
     private val databaseManager: HyperZoneDatabaseManager,
     private val table: FloodgateAuthTable,
@@ -130,5 +136,3 @@ open class FloodgateAuthRepository(
         )
     }
 }
-
-

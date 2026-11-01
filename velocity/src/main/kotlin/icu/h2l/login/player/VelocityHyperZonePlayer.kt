@@ -70,6 +70,9 @@ class VelocityHyperZonePlayer(
     override val authChannelId: String?
         get() = getSubmittedCredentials().firstOrNull()?.channelId
 
+    override val authDisplayChannelId: String?
+        get() = getSubmittedCredentials().firstOrNull()?.displayChannelId
+
     /**
      * 绑定当前登录会话对应的代理层 Player。
      *

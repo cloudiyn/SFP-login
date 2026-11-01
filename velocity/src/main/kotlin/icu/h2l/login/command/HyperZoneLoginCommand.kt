@@ -27,6 +27,7 @@ import com.velocitypowered.api.command.BrigadierCommand
 import com.velocitypowered.api.command.CommandSource
 import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
+import icu.h2l.api.password.ChannelPasswordAdminService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
@@ -87,6 +88,34 @@ class HyperZoneLoginCommand(
                                 )
                         )
                 )
+                .then(
+                    BrigadierCommand.literalArgumentBuilder("password")
+                        .requires { source -> source.hasPermission(ADMIN_PERMISSION) }
+                        .executes { context ->
+                            sendPasswordUsage(context.source)
+                            Command.SINGLE_SUCCESS
+                        }
+                        .then(
+                            BrigadierCommand.requiredArgumentBuilder("player", StringArgumentType.word())
+                                .executes { context ->
+                                    sendPasswordUsage(context.source)
+                                    Command.SINGLE_SUCCESS
+                                }
+                                .then(
+                                    BrigadierCommand.requiredArgumentBuilder(
+                                        "newPassword",
+                                        StringArgumentType.word()
+                                    )
+                                        .executes { context ->
+                                            executeForcePassword(
+                                                context.source,
+                                                StringArgumentType.getString(context, "player"),
+                                                StringArgumentType.getString(context, "newPassword")
+                                            )
+                                        }
+                                )
+                        )
+                )
         )
     }
 
@@ -100,7 +129,63 @@ class HyperZoneLoginCommand(
         messages.send(sender, MessageKeys.HzlCommand.USAGE_BINDCODE_USE)
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             messages.send(sender, MessageKeys.HzlCommand.USAGE_UUID)
+            messages.send(sender, MessageKeys.HzlCommand.USAGE_PASSWORD)
         }
+    }
+
+    private fun sendPasswordUsage(sender: CommandSource) {
+        val messages = HyperZoneLoginMain.getInstance().messageService
+        messages.send(sender, MessageKeys.HzlCommand.PASSWORD_USAGE)
+    }
+
+    /**
+     * 管理员按玩家名强制改密（跨渠道自动定位）。
+     */
+    private fun executeForcePassword(sender: CommandSource, playerName: String, newPassword: String): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
+        if (newPassword.isBlank()) {
+            messages.send(sender, MessageKeys.HzlCommand.PASSWORD_USAGE)
+            return Command.SINGLE_SUCCESS
+        }
+
+        val service = ChannelPasswordAdminService()
+        val changed = runCatching {
+            service.forceSetPasswordByName(playerName, newPassword)
+        }.getOrElse { error ->
+            HyperZoneLoginMain.getInstance().logger.warn(
+                "强制改密失败 player=$playerName: ${error.message}", error
+            )
+            null
+        }
+
+        when {
+            changed == null -> messages.send(
+                sender,
+                MessageKeys.HzlCommand.PASSWORD_NOT_FOUND,
+                HyperZoneMessagePlaceholder.text("name", playerName)
+            )
+
+            changed == 0 -> messages.send(
+                sender,
+                MessageKeys.HzlCommand.PASSWORD_SET_FAILED,
+                HyperZoneMessagePlaceholder.text("name", playerName)
+            )
+
+            else -> {
+                val channels = service.locateByName(playerName)
+                    .map { it.channel.id }
+                    .distinct()
+                    .joinToString(", ")
+                messages.send(
+                    sender,
+                    MessageKeys.HzlCommand.PASSWORD_SET_SUCCESS,
+                    HyperZoneMessagePlaceholder.text("name", playerName),
+                    HyperZoneMessagePlaceholder.text("count", changed),
+                    HyperZoneMessagePlaceholder.text("channels", channels)
+                )
+            }
+        }
+        return Command.SINGLE_SUCCESS
     }
 
     private fun executeReload(sender: CommandSource): Int {

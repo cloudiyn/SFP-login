@@ -51,7 +51,7 @@ object YggdrasilMessages {
         return render(
             player,
             "profile-resolve-failed",
-            "$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+            "$reason。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }
@@ -60,7 +60,7 @@ object YggdrasilMessages {
         return render(
             player,
             "verify-complete-failed",
-            "认证成功，但 Profile 绑定失败：$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+            "认证成功，但 Profile 绑定失败：$reason。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use [绑定码]；若没有可用绑定码，请联系管理员。",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }
@@ -95,13 +95,18 @@ object YggdrasilMessages {
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
         val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        // 消息服务在键缺失时返回 "Missing message" 占位文本而不是 null，
+        // 因此必须先用 hasKey 判断资源是否真的存在，缺键时回退到代码内置文案，
+        // 以兼容从旧版本升级、落盘消息文件尚未补齐新键的数据目录。
+        if (service != null && service.hasKey("$NAMESPACE.$key")) {
+            return service.render(player, "$NAMESPACE.$key", *placeholders)
+        }
+        return Component.text(placeholders.fold(fallback) { acc, placeholder ->
+            val replacement = when (placeholder) {
+                is HyperZoneMessagePlaceholder.Text -> placeholder.value
+                is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
+            }
+            acc.replace("<${placeholder.name}>", replacement)
+        })
     }
 }

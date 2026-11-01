@@ -68,6 +68,13 @@ object EmbeddedModuleRegistry {
         implementationClassName = "icu.h2l.login.profile.skin.ProfileSkinSubModule",
     )
 
+    val qqWhitelist = EmbeddedModuleSpec(
+        configKey = "qqWhitelist",
+        displayName = "QQ Whitelist",
+        externalPluginId = "hzl-qq-whitelist",
+        implementationClassName = "icu.h2l.login.qq.whitelist.QqWhitelistSubModule",
+    )
+
     val dataMerge = EmbeddedModuleSpec(
         configKey = "dataMerge",
         displayName = "Data Merge",

@@ -34,14 +34,21 @@ import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.getChannel
+import icu.h2l.api.profile.ChannelPasswordGateRegistry
 import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.WaitingAreaReleaseGate
+import icu.h2l.api.profile.WaitingAreaReleaseGateRegistryProvider
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
+import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.login.message.MessageKeys
+import icu.h2l.login.message.MessageService
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -59,6 +66,14 @@ class LoginManager(
     private val readyTransitionOwners = ConcurrentHashMap<UUID, VelocityHyperZonePlayer>()
     private val notifiedReadyPlayers = ConcurrentHashMap.newKeySet<VelocityHyperZonePlayer>()
     private val lastReadyConflictPlayerIds = ConcurrentHashMap<VelocityHyperZonePlayer, Set<UUID>>()
+
+    /** 当前正在进行的 claim 与其 session 的对应关系，用于判定 claim 是否在等待玩家手动输入。 */
+    private val awaitingSessions = CopyOnWriteArrayList<AwaitingClaim>()
+
+    private class AwaitingClaim(
+        val future: CompletableFuture<LoginHandleResult>,
+        val session: LoginHandleSession,
+    )
 
     override fun submitCredential(player: HyperZonePlayer, credential: HyperZoneCredential) {
         submitCredentialByChannel(resolveChannel(player), credential)
@@ -93,7 +108,57 @@ class LoginManager(
             player.sendMessage(HyperZoneLoginMain.getInstance().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
             return
         }
+        // 渠道提示只是信息性文案，任何异常都不应影响已经完成的登录流程
+        runCatching { sendAuthChannelNotice(player) }.onFailure { throwable ->
+            debug(HyperZoneDebugType.GENERAL) { "发送认证渠道提示失败: ${throwable.message}" }
+        }
         onProfileAttached(player)
+    }
+
+    /**
+     * 验证通过后告知玩家本次实际使用的验证方式，并提醒不同验证方式的档案数据互不相通。
+     *
+     * 渠道显示名优先取 `player.auth-channel-name.<channelId>` 的本地化文案，
+     * 缺失时回退为原始 channelId。
+     */
+    private fun sendAuthChannelNotice(player: HyperZonePlayer) {
+        val channelId = player.authChannelId?.takeUnless { it.isBlank() } ?: return
+        val messageService = HyperZoneLoginMain.getInstance().messageService
+        if (!messageService.hasKey(MessageKeys.Player.AUTH_CHANNEL_NOTICE)) {
+            return
+        }
+
+        // 优先按具体入口取展示名（如 Yggdrasil 下的 mojang / littleskin），
+        // 缺失时逐级回退到渠道级名字，最后退回原始标识，保证任何配置下都有可读提示。
+        val displayChannelId = player.authDisplayChannelId?.takeUnless { it.isBlank() } ?: channelId
+        val displayName = resolveChannelDisplayName(player, messageService, displayChannelId)
+            ?: resolveChannelDisplayName(player, messageService, channelId)
+            ?: displayChannelId
+
+        player.sendMessage(
+            messageService.render(
+                player,
+                MessageKeys.Player.AUTH_CHANNEL_NOTICE,
+                HyperZoneMessagePlaceholder.text("channel", displayName),
+                HyperZoneMessagePlaceholder.text("channel_id", channelId)
+            )
+        )
+    }
+
+    /**
+     * 解析渠道展示名：取 `player.auth-channel-name.<channelId>` 的本地化文案，
+     * 未配置时返回 null，交由调用方继续回退。
+     */
+    private fun resolveChannelDisplayName(
+        player: HyperZonePlayer,
+        messageService: MessageService,
+        channelId: String
+    ): String? {
+        val key = "${MessageKeys.Player.AUTH_CHANNEL_NAME_PREFIX}.${channelId.lowercase()}"
+        if (!messageService.hasKey(key)) {
+            return null
+        }
+        return PLAIN_TEXT.serialize(messageService.render(player, key))
     }
 
 //    和login的区别是 这个会尝试离开等待区
@@ -171,6 +236,24 @@ class LoginManager(
                 return
             }
 
+            // 等待区放行闸门：认证通过且档案已 attach 后，真正离开等待区之前必须由全部闸门放行。
+            // 该闸门是同步阻塞判定，拒绝时玩家停留在等待区（或按闸门要求断开连接）。
+            val attachedProfile = profileService.getAttachedProfile(hyperPlayer) ?: return
+            val gateDecision = WaitingAreaReleaseGateRegistryProvider.getOrNull()
+                ?.evaluate(player, attachedProfile)
+                ?: WaitingAreaReleaseGate.Decision.Allow()
+            if (gateDecision is WaitingAreaReleaseGate.Decision.Deny) {
+                gateDecision.message?.let { player.sendMessage(it) }
+                if (gateDecision.disconnect) {
+                    debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                        "loginManager.tryLeaveWaiting denied and disconnected player=${hyperPlayer.clientOriginalName} profile=${attachedProfile.name}"
+                    }
+                    player.disconnect(gateDecision.message ?: Component.empty())
+                }
+                return
+            }
+            val releaseNotice = (gateDecision as? WaitingAreaReleaseGate.Decision.Allow)?.notice
+
             lastReadyConflictPlayerIds.remove(hyperPlayer)
             if (!notifiedReadyPlayers.add(hyperPlayer)) {
                 return
@@ -178,6 +261,7 @@ class LoginManager(
 
             PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
             main.serverAdapter?.onVerified(player)
+            releaseNotice?.let { player.sendMessage(it) }
         } finally {
             readyTransitionOwners.remove(attachedProfileId, hyperPlayer)
         }
@@ -291,26 +375,13 @@ class LoginManager(
             output.complete(result)
         }
 
-        CompletableFuture.delayedExecutor(timeoutMillis, TimeUnit.MILLISECONDS).execute {
-            if (completed.compareAndSet(false, true)) {
-                cancelSignal.complete(null)
-                runningTasks.forEach { (_, future) -> future.cancel(true) }
-                output.complete(
-                    Result(
-                        status = Status.TIMEOUT,
-                        failures = failures.toList(),
-                        reason = "login dispatch timeout after ${timeoutMillis}ms"
-                    )
-                )
-            }
-        }
-
         val startedClaims = claims.map { claim ->
+            val session = VelocityLoginHandleSession(hyperZonePlayer)
             val claimFuture = try {
                 claim.handler.handle(
                     LoginHandleContext(
                         proxyPlayer = proxyPlayer,
-                        session = VelocityLoginHandleSession(hyperZonePlayer),
+                        session = session,
                         metadata = metadata,
                         cancelSignal = cancelSignal,
                     )
@@ -320,9 +391,24 @@ class LoginManager(
                     LoginHandleResult.failed(throwable.message ?: "claim threw exception")
                 )
             }
+            // 登记 session 供超时检查判定"是否正在等待玩家输入"
+            awaitingSessions += AwaitingClaim(claimFuture, session)
+            claimFuture.whenComplete { _, _ ->
+                awaitingSessions.removeIf { it.future === claimFuture }
+            }
             runningTasks += claim.moduleId to claimFuture
             claim to claimFuture
         }
+
+        scheduleDispatchTimeout(
+            output = output,
+            completed = completed,
+            cancelSignal = cancelSignal,
+            runningTasks = runningTasks,
+            failures = failures,
+            startedClaims = startedClaims,
+            deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        )
 
         startedClaims.forEach { (claim, claimFuture) ->
             claimFuture.whenComplete { result, throwable ->
@@ -421,6 +507,89 @@ class LoginManager(
         }
     }
 
+    /**
+     * 为一次 dispatch 调度超时。
+     *
+     * 关键行为：当仍有 claim 处于"等待玩家手动输入"状态（例如渠道本地密码门正在等 `/register`、`/login`）时，
+     * 本次检查不判定超时，而是把截止时间整体顺延一个检查周期。
+     *
+     * 这样可以避免"玩家看提示、打命令"的这段时间被计入固定超时：
+     * 一旦超时提前触发，玩家随后提交的凭证将没有任何 claim 在等待，档案永远无法 attach。
+     * 该状态由 [LoginHandleSession.awaitingPlayerInput] 暴露，调用方也可据此决定是否提前把玩家放行到等待区。
+     *
+     * @param deadlineNanos 当前的超时截止时间戳；等待玩家输入时会被顺延
+     */
+    private fun scheduleDispatchTimeout(
+        output: CompletableFuture<Result>,
+        completed: AtomicBoolean,
+        cancelSignal: CompletableFuture<Void>,
+        runningTasks: CopyOnWriteArrayList<Pair<String, CompletableFuture<LoginHandleResult>>>,
+        failures: CopyOnWriteArrayList<ModuleFailure>,
+        startedClaims: List<Pair<LoginClaim, CompletableFuture<LoginHandleResult>>>,
+        deadlineNanos: Long,
+    ) {
+        CompletableFuture.delayedExecutor(timeoutMillis, TimeUnit.MILLISECONDS).execute {
+            if (completed.get()) {
+                return@execute
+            }
+
+            // 仍有 claim 在等待玩家输入：暂停计时，整体顺延一个检查周期
+            if (startedClaims.any { (_, future) -> !future.isDone && isClaimAwaitingPlayerInput(future) }) {
+                debug(HyperZoneDebugType.GENERAL) {
+                    "login dispatch timeout paused: claim is awaiting player input"
+                }
+                scheduleDispatchTimeout(
+                    output = output,
+                    completed = completed,
+                    cancelSignal = cancelSignal,
+                    runningTasks = runningTasks,
+                    failures = failures,
+                    startedClaims = startedClaims,
+                    deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+                )
+                return@execute
+            }
+
+            // 玩家输入已结束，但可能只消耗了很短时间：以最初截止时间为准重新计时
+            val remainingNanos = deadlineNanos - System.nanoTime()
+            if (remainingNanos > 0) {
+                scheduleDispatchTimeout(
+                    output = output,
+                    completed = completed,
+                    cancelSignal = cancelSignal,
+                    runningTasks = runningTasks,
+                    failures = failures,
+                    startedClaims = startedClaims,
+                    deadlineNanos = deadlineNanos
+                )
+                return@execute
+            }
+
+            if (completed.compareAndSet(false, true)) {
+                cancelSignal.complete(null)
+                runningTasks.forEach { (_, future) -> future.cancel(true) }
+                output.complete(
+                    Result(
+                        status = Status.TIMEOUT,
+                        failures = failures.toList(),
+                        reason = "login dispatch timeout after ${timeoutMillis}ms"
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * 判断某个 claim 当前是否处于"等待玩家手动输入"状态。
+     *
+     * 这里通过 claim 自己持有的 [LoginHandleSession] 判定，避免 LoginManager 依赖具体认证模块。
+     */
+    private fun isClaimAwaitingPlayerInput(future: CompletableFuture<LoginHandleResult>): Boolean {
+        return runCatching {
+            awaitingSessions.firstOrNull { entry -> entry.future === future }?.session?.awaitingPlayerInput() == true
+        }.getOrDefault(false)
+    }
+
     private fun submitCredentialByChannel(channel: Channel, credential: HyperZoneCredential) {
         val existing = credentialsByChannel[channel]
         if (existing != null) {
@@ -443,6 +612,7 @@ class LoginManager(
 
     companion object {
         const val DEFAULT_TIMEOUT_MILLIS: Long = 12_000
+        private val PLAIN_TEXT = PlainTextComponentSerializer.plainText()
     }
 }
 
@@ -453,6 +623,17 @@ private class VelocityLoginHandleSession(
 
     override fun hasAttachedProfile(): Boolean = player.hasAttachedProfile()
 
+    /**
+     * 通过渠道密码门注册表判定当前会话是否正等待玩家手动输入密码。
+     *
+     * 这样登录编排层无需依赖任何具体认证模块，即可把"等待玩家输入"的耗时排除出 claim 超时。
+     */
+    override fun awaitingPlayerInput(): Boolean {
+        return runCatching {
+            ChannelPasswordGateRegistry.resolveGate(player)
+                ?.getGateStatus(player) != null
+        }.getOrDefault(false)
+    }
 
     override fun sendMessage(message: net.kyori.adventure.text.Component) {
         player.sendMessage(message)

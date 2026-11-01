@@ -59,6 +59,7 @@ val embeddedModuleProjects = listOf(
     project(":data-merge"),
     project(":safe"),
     project(":profile-skin"),
+    project(":qq-whitelist"),
 )
 
 val relocateBstatsCompileOnlyJar = tasks.register<ShadowJar>("relocateBstatsCompileOnlyJar") {

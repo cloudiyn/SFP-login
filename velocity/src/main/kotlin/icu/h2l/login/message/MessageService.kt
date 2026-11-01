@@ -87,6 +87,17 @@ class MessageService(
         return renderInternal(player.getProxyPlayerOrNull()?.let(::resolvePlayerLocaleKey), key, *toInternalPlaceholders(placeholders))
     }
 
+    override fun hasKey(key: String): Boolean {
+        val candidates = LinkedHashSet<String>()
+        normalizeLocaleKey(config.defaultLocale)?.let(candidates::add)
+        normalizeLocaleKey(config.fallbackLocale)?.let(candidates::add)
+        candidates += DEFAULT_LOCALE
+
+        return candidates.any { candidate ->
+            !findTemplate(candidate, key).isNullOrBlank()
+        }
+    }
+
     private fun renderInternal(localeKey: String?, key: String, vararg placeholders: MessagePlaceholder): Component {
         val template = resolveTemplate(localeKey, key)
         return miniMessage.deserialize(template, *placeholders.map { it.asTagResolver() }.toTypedArray())
@@ -166,6 +177,8 @@ class MessageService(
             defaultProvider = { HoconConfigurationLoader.builder().build() },
             forceSaveHook = { _, _ -> false }
         )
+
+        // 先加载数据目录中的用户配置。
         Files.walk(localeDir).use { paths ->
             paths
                 .filter { Files.isRegularFile(it) && it.extension.equals("conf", ignoreCase = true) }
@@ -185,6 +198,29 @@ class MessageService(
                     }
                 }
         }
+
+        // 再以内置默认补齐缺失的 key（用户已有配置不会被覆盖），
+        // 保证插件升级后新增的 key 在旧配置文件上依然可用。
+        for (localeKey in BUNDLED_LOCALES) {
+            val resourcePath = "$MESSAGES_DIRECTORY/$localeKey.conf"
+            val resourceUrl = javaClass.classLoader.getResource(resourcePath)
+            if (resourceUrl == null) {
+                logger.warn("Bundled locale resource '{}' was not found", resourcePath)
+                continue
+            }
+
+            runCatching {
+                val node = HoconConfigurationLoader.builder()
+                    .url(resourceUrl)
+                    .build()
+                    .load()
+                val mergedNode = loaded.getOrPut(localeKey) { emptyNodeFactory.createNode() }
+                mergedNode.mergeFrom(node)
+            }.onFailure { throwable ->
+                logger.error("Failed to load bundled message locale {} from {}", localeKey, resourcePath, throwable)
+            }
+        }
+
         return loaded
     }
 

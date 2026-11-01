@@ -67,6 +67,17 @@ interface LoginHandleSession {
     fun originalName(): String
     fun hasAttachedProfile(): Boolean
     fun sendMessage(message: Component)
+
+    /**
+     * 当前 claim 是否正在等待玩家手动输入（例如渠道本地密码门的 `/register`、`/login`）。
+     *
+     * 返回 `true` 时，登录编排层不应把这段耗时计入 claim 超时——
+     * 因为玩家阅读提示并输入命令所需的时间不可预期，固定超时会让 claim 提前失败，
+     * 导致玩家随后提交的凭证没有任何 claim 在等待、永远无法完成档案 attach。
+     *
+     * 默认 `false`，表示该 claim 的正常处理不应超过编排层设定的超时。
+     */
+    fun awaitingPlayerInput(): Boolean = false
 }
 
 data class LoginClaim(

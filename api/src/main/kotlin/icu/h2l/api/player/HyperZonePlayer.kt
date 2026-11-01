@@ -71,6 +71,16 @@ interface HyperZonePlayer {
         get() = null
 
     /**
+     * 用于玩家提示的展示渠道标识，默认与 [authChannelId] 相同。
+     *
+     * 当一个渠道内部包含多个更细粒度的入口时（例如 Yggdrasil 下的
+     * `mojang` / `littleskin` / `elyby`），该值会返回具体入口 ID，
+     * 使提示文案能够按实际验证来源区分。
+     */
+    val authDisplayChannelId: String?
+        get() = authChannelId
+
+    /**
      * 当前连接在预登录阶段最终判定出的在线模式。
      *
      * 该值只在第一次创建登录期玩家对象时确定，之后只允许读取，不允许修改。

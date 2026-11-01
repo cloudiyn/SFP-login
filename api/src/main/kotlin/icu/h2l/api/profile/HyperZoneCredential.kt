@@ -36,6 +36,16 @@ interface HyperZoneCredential {
     val channelId: String
 
     /**
+     * 用于玩家提示的“展示渠道标识”，默认与 [channelId] 相同。
+     *
+     * 当一个渠道内部包含多个更细粒度的入口时（例如 Yggdrasil 下的
+     * `mojang` / `littleskin` / `elyby`），实现可覆盖此属性为具体入口 ID，
+     * 使 `player.auth-channel-name.<id>` 这类提示文案能够按实际入口区分。
+     */
+    val displayChannelId: String
+        get() = channelId
+
+    /**
      * 该渠道内部可识别的凭证标识。
      */
     val credentialId: String
@@ -65,24 +75,6 @@ interface HyperZoneCredential {
      * [HyperZoneProfileService.create] 的凭证重载。
      */
     fun getRegistrationName(): String? {
-        return null
-    }
-
-    /**
-     * 返回一个应用了注册名变更的新凭证实例。
-     *
-     * 默认返回 null，表示该渠道不支持 rename。
-     */
-    fun withRegistrationName(newRegistrationName: String): HyperZoneCredential? {
-        return null
-    }
-
-    /**
-     * 返回一个用于 reUUID 流程的新凭证实例。
-     *
-     * 默认返回 null，表示该渠道不支持 reUUID。
-     */
-    fun withReUuidRequest(): HyperZoneCredential? {
         return null
     }
 

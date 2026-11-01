@@ -68,6 +68,8 @@ class YggdrasilSubModule : HyperSubModule {
 
         proxy.eventManager.register(api, authListener)
 
+        // 渠道密码共享命令由 offline 渠道统一注册并路由，本渠道不再注册自己的密码门
+
         this.entryConfigManager = entryConfigManager
         this.entryTableManager = entryTableManager
         this.yggdrasilAuthModule = yggdrasilAuthModule

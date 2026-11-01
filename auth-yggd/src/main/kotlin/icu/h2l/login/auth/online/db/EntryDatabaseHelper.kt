@@ -22,7 +22,9 @@
 package icu.h2l.login.auth.online.db
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
+import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
+import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
@@ -30,17 +32,21 @@ import java.util.*
 
 /**
  * Entry 表数据操作帮助类
+ *
+ * 说明：本类只负责**入口身份绑定**（name/uuid/pid 在各自的 `entry_<id>` 表中）。
+ * 本地密码已统一交由 offline 渠道的密码体系处理，本类不再涉及任何密码读写。
  */
 class EntryDatabaseHelper(
     private val databaseManager: HyperZoneDatabaseManager,
     private val entryTableManager: EntryTableManager
 ) {
+
     fun findEntryByUuid(entryId: String, uuid: UUID): UUID? {
         val entryTable = entryTableManager.getEntryTable(entryId) ?: return null
 
-        return databaseManager.executeTransaction {
+        return databaseManager.executeTransaction<UUID?> {
             val matchedProfileIds = entryTable.selectAll().where { entryTable.uuid eq uuid }
-                .map { it[entryTable.pid] }
+                .mapNotNull { it[entryTable.pid] }
 
             val distinctProfileIds = matchedProfileIds.distinct()
             if (distinctProfileIds.size > 1) {
@@ -56,8 +62,9 @@ class EntryDatabaseHelper(
 
         return try {
             databaseManager.executeTransaction {
-                val existingBindings = entryTable.selectAll().where { entryTable.uuid eq uuid }
-                    .map { row -> row[entryTable.pid] to row[entryTable.name] }
+                val existingBindings: List<Pair<UUID?, String>> = entryTable.selectAll()
+                    .where { entryTable.uuid eq uuid }
+                    .map { row: ResultRow -> row[entryTable.pid] to row[entryTable.name] }
 
                 when {
                     existingBindings.isEmpty() -> {
@@ -68,11 +75,18 @@ class EntryDatabaseHelper(
                         }
                     }
 
-                    existingBindings.any { (existingPid, _) -> existingPid != pid } -> {
+                    existingBindings.any { (existingPid, _) -> existingPid != null && existingPid != pid } -> {
                         warn {
-                            "创建入口记录失败: Entry $entryId 中 UUID=$uuid 已绑定到其他 profileId=${existingBindings.map { it.first }.distinct()}，拒绝改绑到 $pid"
+                            "创建入口记录失败: Entry $entryId 中 UUID=$uuid 已绑定到其他 profileId=${existingBindings.mapNotNull { it.first }.distinct()}，拒绝改绑到 $pid"
                         }
                         return@executeTransaction false
+                    }
+
+                    existingBindings.any { (existingPid, _) -> existingPid == null } -> {
+                        entryTable.update({ entryTable.uuid eq uuid }) {
+                            it[entryTable.name] = name
+                            it[entryTable.pid] = pid
+                        }
                     }
 
                     existingBindings.any { (_, existingName) -> existingName != name } -> {

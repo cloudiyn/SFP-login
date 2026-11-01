@@ -26,8 +26,10 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.log.info
 import icu.h2l.api.module.HyperSubModule
+import icu.h2l.api.profile.ChannelPasswordGateRegistry
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.auth.offline.command.OfflineAuthCommandRegistrar
+import icu.h2l.login.auth.offline.service.OfflineChannelPasswordGate
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
 import icu.h2l.login.auth.offline.config.OfflineAuthMessageResourceLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
@@ -58,14 +60,16 @@ class OfflineSubModule : HyperSubModule {
         // Load offline matching configuration for this module
                 AuthOfflineConfigLoader.load(dataDirectory)
         OfflineAuthMessageResourceLoader.load(dataDirectory)
+        // 统一密码存储：三个认证渠道共享同一份仓储，由核心在启动时绑定
+        val channelPasswordRepository = icu.h2l.api.password.ChannelPasswordProvider.get()
         offlineAuthTableManager = OfflineAuthTableManager(
             databaseManager = databaseManager,
             tablePrefix = databaseManager.tablePrefix,
-            profileTable = profileTable
+            profileTable = profileTable,
+            passwordRepository = channelPasswordRepository
         )
         offlineAuthRepository = OfflineAuthRepository(
-            databaseManager = databaseManager,
-            table = offlineAuthTableManager.offlineAuthTable
+            passwordRepository = channelPasswordRepository
         )
         val offlineAuthConfig = AuthOfflineConfigLoader.getConfig().main
         val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
@@ -102,6 +106,14 @@ class OfflineSubModule : HyperSubModule {
         OfflineAuthCommandRegistrar.registerAll(
             commandManager = api.chatCommandManager,
             authService = offlineAuthService
+        )
+        // 接入统一渠道密码门：让 /login、/register、/changepassword 可被路由到离线渠道
+        ChannelPasswordGateRegistry.register(
+            OfflineChannelPasswordGate(
+                authService = offlineAuthService,
+                repository = offlineAuthRepository,
+                playerAccessor = api.hyperZonePlayers
+            )
         )
         proxy.eventManager.register(api, OfflineWaitingAreaEventListener(offlineAuthService))
         info { "OfflineSubModule 已加载，离线聊天命令与提示监听器已注册" }

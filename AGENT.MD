@@ -19,14 +19,14 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 
 - `resolveOrCreate`
 - `canResolveOrCreate`
-- 任何把 `resolve / create / rename / 回退匹配 / 自动改名` 混在一个入口中的 API
+- 任何把 `resolve / create / 回退匹配 / 自动改名` 混在一个入口中的 API
 
 原因：登录流程必须可审计、可推导、可断言，不能依赖“也许解析、也许创建、也许顺便改名”的模糊副作用。
 
 ## 2. `clientOriginalName` 与 `registrationName` 必须严格区分
 
 - `clientOriginalName`：客户端初始上报的**不可信原始名**，创建后不得改写。
-- `registrationName`：当前等待区会话在“若要新建 Profile”时应使用的**待建档注册名**，可由 `/rename` 在等待区中显式修改。
+- `registrationName`：当前等待区会话在“若要新建 Profile”时应使用的**待建档注册名**，完全由认证渠道提交的凭证决定；等待区**不提供**任何玩家可自行改名的命令入口。
 
 禁止把 `clientOriginalName` 当成：
 
@@ -34,39 +34,27 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 - 正式游戏身份
 - 当前可变注册名
 
-## 3. `/rename` 的职责边界
+## 3. 等待区不提供改名 / 重算 UUID 入口
 
-`/rename` 只能用于：
+`/rename` 与 `/reUUID` 已从项目中**整体移除**，禁止以任何形式重新引入：
 
-- 当前玩家仍在等待区；
-- 当前玩家尚未 attach 正式 Profile；
-- 当前会话存在待建档上下文；
-- 新名称已经通过严格的 `canCreate(...)` 检查。
+- 不允许注册 `rename` / `reUUID` 命令（含任何别名）；
+- 不允许提供"玩家在等待区自行修改待建档注册名"的入口；
+- 不允许提供"玩家在等待区自行重算/重分配建档 UUID"的入口；
+- `HyperZoneCredential` 不再提供 `withRegistrationName(...)` / `withReUuidRequest()` 这类派生凭证接口。
 
-`/rename` 触发后应：
+原因：等待区的名称、UUID、凭证组合都属于**不可信且高变化的临时态**，把它暴露成玩家可自助触发的写操作，会让登录状态机变得不可审计、不可推导。
 
-1. 修改事件发起者当前会话的 `registrationName`；
-2. 触发 `event.auth.LoginRenameEvent`；
-3. 仅让**事件发起者本人**的等待区流程重试；
-4. 不得影响其他等待区玩家。
+## 4. 已落库绑定关系不得被静默改写
 
-额外强调：
-
-- `/rename` **不得**作为 `attachProfile` 之后的游戏区身份热改入口；
-- 已 attach 正式 Profile 后的任何 name / UUID 热改，若未来存在，只能由**核心内部受控流程**驱动，不得由等待区命令直接触发；
-- 等待区的名称、UUID、凭证组合都属于**不可信且高变化的临时态**，不得草率把等待区操作外溢到正式游戏区身份。
-
-## 4. 已落库绑定关系不得被 rename 静默改写
-
-`rename` 只允许修改**当前等待区会话的临时待建档状态**。
+建档一旦完成，正式 Profile 的 `name` / `UUID` 与已落库的认证绑定都视为**正式数据**。
 
 禁止：
 
-- 因 `/rename` 直接修改已存在 Profile 的正式名称；
-- 因 `/rename` 直接改写已落库的正式认证绑定；
-- 用 `/rename` 充当 merge / remap / rebind 工具。
-
-同理，`/reUUID` 也只允许服务于等待区临时建档流程，禁止把它扩展成已 attach Profile 的在线 UUID 热改入口。
+- 在等待区或游戏区直接修改已存在 Profile 的正式名称；
+- 直接改写已落库的正式认证绑定；
+- 把任何建档流程充当 merge / remap / rebind 工具；
+- 重新引入任何形式的改名 / 重算 UUID 玩家入口（见第 3 节）。
 
 ## 5. 认证凭证规范
 
@@ -74,8 +62,8 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 
 - `getBoundProfileId()` 只表示当前是否已绑定；
 - 未绑定凭证如需参与严格建档，可通过 `getSuggestedProfileCreateUuid()` 显式提供建议 UUID；
-- 如需支持等待区 rename，只能通过 `onRegistrationNameChanged(...)` 修改**临时状态**；
-- 不得在 rename 时隐式篡改正式落库绑定。
+- `getRegistrationName()` 返回渠道自身的可信注册名，凭证一旦提交即视为不可变更；
+- 不得以任何方式在凭证提交之后隐式篡改正式落库绑定。
 
 ## 5.1 `attachProfile` 后的游戏区流程边界
 
@@ -84,8 +72,8 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 此阶段若存在 GameProfile 显示优化、正式 name/UUID 补偿同步、切服后身份一致性修复等需求，必须遵守：
 
 - 只允许由核心层**内部受控机制**处理；
-- 必须与等待区建档/改名/重算 UUID 流程彻底隔离；
-- 不得复用 `/rename`、`/reUUID`、等待区 credential 回调等不可信入口直接驱动；
+- 必须与等待区建档流程彻底隔离；
+- 不得复用等待区 credential 回调等不可信入口直接驱动；
 - 设计与实现时必须明确标注“这是正式游戏区流程，不是等待区流程”。
 
 ## 5.2 `VelocityHyperZoneProfileService` / `DatabaseHelper` 的禁止越界项
@@ -134,7 +122,7 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 ### 8.2 模块行为与核心提示必须对齐
 
 - 若模块会把玩家留在等待区，就必须给出下一步操作提示；
-- 若模块支持 `/rename` / `/bindcode use` 这类恢复路径，就必须在对应失败提示中明确告知；
+- 若模块支持 `/bindcode use` 这类恢复路径，就必须在对应失败提示中明确告知；
 - 不允许某个模块具备功能，但提示链路缺失，导致玩家只能“猜命令”。
 
 ### 8.3 新模块接入检查项

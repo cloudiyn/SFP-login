@@ -29,33 +29,33 @@ object ProfileSkinMessages {
     private const val NAMESPACE = "profile-skin"
 
     fun processing(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.processing")
-            ?: Component.text("正在处理皮肤信息，请稍候…")
+        return render(player, "processing", "正在处理皮肤信息，请稍候…")
     }
 
     fun ready(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.ready")
-            ?: Component.text("皮肤信息处理完成，进入游戏后将自动应用。")
+        return render(player, "ready", "皮肤信息处理完成，进入游戏后将自动应用。")
     }
 
     fun readyWithFallback(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.ready-with-fallback")
-            ?: Component.text("皮肤信息处理完成，但使用了回退结果，显示可能不稳定。")
+        return render(player, "ready-with-fallback", "皮肤信息处理完成，但使用了回退结果，显示可能不稳定。")
     }
 
     fun noSkin(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.no-skin")
-            ?: Component.text("未检测到可用皮肤信息，将使用默认外观。")
+        return render(player, "no-skin", "未检测到可用皮肤信息，将使用默认外观。")
     }
 
     fun repairFailed(player: HyperZonePlayer): Component {
+        return render(player, "repair-failed", "皮肤修复失败，需要重新进入游戏")
+    }
+
+    private fun render(player: HyperZonePlayer, key: String, fallback: String): Component {
         val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.repair-failed")
-            ?: Component.text("皮肤修复失败，需要重新进入游戏")
+        // 消息服务在键缺失时返回 "Missing message" 占位文本而不是 null，必须先用 hasKey 判断，
+        // 缺键时回退到代码内置文案，兼容旧版本升级后落盘消息文件尚未补齐新键的数据目录。
+        if (service != null && service.hasKey("$NAMESPACE.$key")) {
+            return service.render(player, "$NAMESPACE.$key")
+        }
+        return Component.text(fallback)
     }
 }
 

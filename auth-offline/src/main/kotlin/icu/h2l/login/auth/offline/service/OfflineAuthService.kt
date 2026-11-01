@@ -24,6 +24,8 @@ package icu.h2l.login.auth.offline.service
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
+import icu.h2l.api.password.ChannelPasswordService
+import icu.h2l.api.password.ChannelPasswordServiceProvider
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
@@ -35,8 +37,6 @@ import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.totp.OfflineTotpAuthenticator
 import net.kyori.adventure.text.Component
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
 
@@ -47,7 +47,9 @@ class OfflineAuthService(
     private val profileService: HyperZoneProfileService,
     private val emailSender: OfflineAuthEmailSender,
     private val totpAuthenticator: OfflineTotpAuthenticator,
-    private val proxy: ProxyServer
+    private val proxy: ProxyServer,
+    /** 三渠道共享的密码校验/会话服务；默认取全局绑定实例。 */
+    private val passwordService: ChannelPasswordService = ChannelPasswordServiceProvider.get()
 ) {
     data class Result(val success: Boolean, val message: Component)
     data class SessionCheckResult(val passed: Boolean, val message: Component? = null)
@@ -59,6 +61,10 @@ class OfflineAuthService(
 
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
     private val secureRandom = SecureRandom()
+
+    /** 统一密码表仓库（补全 profileId 等跨渠道字段时使用）。 */
+    private val passwordRepository: icu.h2l.api.password.ChannelPasswordRepository =
+        icu.h2l.api.password.ChannelPasswordProvider.get()
 
     fun register(player: Player, password: String): Result {
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
@@ -103,7 +109,7 @@ class OfflineAuthService(
                 successMessage = OfflineAuthMessages.REGISTER_SUCCESS,
                 failureMessage = OfflineAuthMessages.REGISTER_FAILED,
                 markVerified = true,
-                issueSession = AuthOfflineConfigLoader.getConfig().main.session.enabled &&
+                issueSession = AuthOfflineConfigLoader.getConfig().main.toChannelPasswordPolicy().sessionEnabled &&
                     AuthOfflineConfigLoader.getConfig().main.session.issueOnRegister
             )
         }
@@ -211,45 +217,43 @@ class OfflineAuthService(
         val entry = resolveLoginEntry(player, username)
             ?: return Result(false, missingLoginEntryMessage(hyperPlayer.clientOriginalName, username))
 
-        val now = System.currentTimeMillis()
-        val blockedUntil = entry.loginBlockedUntil
-        if (blockedUntil != null && blockedUntil > now) {
-            publishAuthFailure(
-                player = player,
-                authType = AuthenticationFailureEvent.AuthType.OFFLINE,
-                reason = AuthenticationFailureEvent.Reason.RATE_LIMITED,
-                reasonMessage = "offline login temporarily blocked"
-            )
-            return Result(false, OfflineAuthMessages.loginBlocked(((blockedUntil - now) / 1000).coerceAtLeast(1)))
-        }
-
-        if (!verifyPassword(password, entry)) {
-            val protection = AuthOfflineConfigLoader.getConfig().main.login
-            val nextFailCount = entry.loginFailCount + 1
-            if (nextFailCount >= protection.maxAttempts) {
-                val blockedTo = now + protection.blockSeconds * 1000L
-                repository.updateLoginProtection(entry.profileId, 0, blockedTo)
+        val policy = AuthOfflineConfigLoader.getConfig().main.toChannelPasswordPolicy()
+        when (val verified = passwordService.verifyPassword(entry.toChannelEntry(), password, policy)) {
+            is ChannelPasswordService.VerifyResult.Blocked -> {
                 publishAuthFailure(
                     player = player,
                     authType = AuthenticationFailureEvent.AuthType.OFFLINE,
                     reason = AuthenticationFailureEvent.Reason.RATE_LIMITED,
-                    reasonMessage = "offline login blocked after too many failures"
+                    reasonMessage = "offline login temporarily blocked"
                 )
-                return Result(false, OfflineAuthMessages.loginBlocked(protection.blockSeconds.toLong()))
+                return Result(false, OfflineAuthMessages.loginBlocked(verified.remainingSeconds))
             }
 
-            repository.updateLoginProtection(entry.profileId, nextFailCount, null)
-            val remainingAttempts = (protection.maxAttempts - nextFailCount).coerceAtLeast(0)
-            publishAuthFailure(
-                player = player,
-                authType = AuthenticationFailureEvent.AuthType.OFFLINE,
-                reason = AuthenticationFailureEvent.Reason.INVALID_CREDENTIALS,
-                reasonMessage = "offline password mismatch"
-            )
-            return Result(false, OfflineAuthMessages.wrongPasswordWithRemainingAttempts(remainingAttempts))
-        }
+            is ChannelPasswordService.VerifyResult.Wrong -> {
+                if (verified.remainingAttempts <= 0) {
+                    publishAuthFailure(
+                        player = player,
+                        authType = AuthenticationFailureEvent.AuthType.OFFLINE,
+                        reason = AuthenticationFailureEvent.Reason.RATE_LIMITED,
+                        reasonMessage = "offline login blocked after too many failures"
+                    )
+                    return Result(false, OfflineAuthMessages.loginBlocked(policy.blockSeconds.toLong()))
+                }
+                publishAuthFailure(
+                    player = player,
+                    authType = AuthenticationFailureEvent.AuthType.OFFLINE,
+                    reason = AuthenticationFailureEvent.Reason.INVALID_CREDENTIALS,
+                    reasonMessage = "offline password mismatch"
+                )
+                return Result(false, OfflineAuthMessages.wrongPasswordWithRemainingAttempts(verified.remainingAttempts))
+            }
 
-        repository.resetLoginProtection(entry.profileId)
+            is ChannelPasswordService.VerifyResult.NoRecord -> {
+                return Result(false, missingLoginEntryMessage(hyperPlayer.clientOriginalName, username))
+            }
+
+            is ChannelPasswordService.VerifyResult.Success -> Unit
+        }
 
         if (isTotpEnabled(entry)) {
             val trimmedCode = totpCode?.trim().orEmpty()
@@ -282,6 +286,8 @@ class OfflineAuthService(
         }.getOrElse { throwable ->
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
+        // 档案已在此时完成绑定，补全统一密码表中可能为空的 profileId（旧库/迁移数据）
+        ensureProfileBinding(entry.name, entry.profileId)
         issueSession(entry.profileId, player)
         return Result(true, OfflineAuthMessages.LOGIN_SUCCESS)
     }
@@ -567,6 +573,7 @@ class OfflineAuthService(
         }.getOrElse { throwable ->
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
+        ensureProfileBinding(entry.name, profileId)
         return Result(true, OfflineAuthMessages.PASSWORD_CHANGE_AUTO_AUTHED)
     }
 
@@ -623,8 +630,9 @@ class OfflineAuthService(
     }
 
     fun tryAutoLoginPrepare(player: Player): SessionPrepareResult? {
-        val sessionConfig = AuthOfflineConfigLoader.getConfig().main.session
-        if (!sessionConfig.enabled) {
+        val config = AuthOfflineConfigLoader.getConfig()
+        val policy = config.main.toChannelPasswordPolicy()
+        if (!policy.sessionEnabled) {
             return null
         }
 
@@ -635,7 +643,7 @@ class OfflineAuthService(
 
         val entry = resolveEntryByPlayer(player) ?: return null
         val profileId = entry.profileId
-        if (isTotpEnabled(entry) && !AuthOfflineConfigLoader.getConfig().main.totp.allowSessionBypass) {
+        if (isTotpEnabled(entry) && !config.main.totp.allowSessionBypass) {
             repository.clearSession(profileId)
             publishAuthFailure(
                 player = player,
@@ -645,29 +653,27 @@ class OfflineAuthService(
             )
             return SessionPrepareResult(false, OfflineAuthMessages.TOTP_LOGIN_REQUIRED)
         }
-        val sessionIssuedAt = entry.sessionIssuedAt ?: return null
-        val sessionExpiresAt = entry.sessionExpiresAt ?: return null
+
         val currentIp = getPlayerRemoteAddress(player)
-        val now = System.currentTimeMillis()
-
-        val invalidByTime = sessionExpiresAt <= now || sessionIssuedAt > sessionExpiresAt
-        val invalidByIp = sessionConfig.bindIp && !entry.sessionIp.isNullOrBlank() && entry.sessionIp != currentIp
-        if (invalidByTime || invalidByIp) {
-            repository.clearSession(profileId)
-            publishAuthFailure(
-                player = player,
-                authType = AuthenticationFailureEvent.AuthType.OFFLINE,
-                reason = AuthenticationFailureEvent.Reason.SESSION_REJECTED,
-                reasonMessage = if (invalidByIp) "session ip mismatch" else "session expired"
+        return when (passwordService.checkSession(entry.toChannelEntry(), policy, currentIp)) {
+            is ChannelPasswordService.SessionResult.Valid -> SessionPrepareResult(
+                passed = true,
+                message = OfflineAuthMessages.SESSION_AUTO_LOGIN,
+                credential = offlineCredential(entry.name, profileId = profileId)
             )
-            return SessionPrepareResult(false, OfflineAuthMessages.SESSION_INVALID)
-        }
 
-        return SessionPrepareResult(
-            passed = true,
-            message = OfflineAuthMessages.SESSION_AUTO_LOGIN,
-            credential = offlineCredential(entry.name, profileId = profileId)
-        )
+            is ChannelPasswordService.SessionResult.Invalid -> {
+                publishAuthFailure(
+                    player = player,
+                    authType = AuthenticationFailureEvent.AuthType.OFFLINE,
+                    reason = AuthenticationFailureEvent.Reason.SESSION_REJECTED,
+                    reasonMessage = "session invalid (expired or ip mismatch)"
+                )
+                SessionPrepareResult(false, OfflineAuthMessages.SESSION_INVALID)
+            }
+
+            is ChannelPasswordService.SessionResult.NoSession -> null
+        }
     }
 
     fun tryAutoLogin(player: Player): SessionCheckResult? {
@@ -686,48 +692,50 @@ class OfflineAuthService(
     }
 
     private fun verifyPassword(password: String, entry: OfflineAuthEntry): Boolean {
-        return when (entry.hashFormat.lowercase()) {
-            HASH_FORMAT_PLAIN -> password == entry.passwordHash
-            HASH_FORMAT_SHA256 -> hashPassword(password) == entry.passwordHash
-            HASH_FORMAT_AUTHME -> verifyAuthMe(password, entry.passwordHash)
-            else -> hashPassword(password) == entry.passwordHash
-        }
+        return passwordService.matches(password, entry.passwordHash, entry.hashFormat)
     }
 
     private fun hashPassword(password: String): String {
-        return sha256Hex(password)
+        return passwordService.sha256Hex(password)
     }
 
-    private fun verifyAuthMe(password: String, storedHash: String): Boolean {
-        val parts = storedHash.split("$")
-        if (parts.size != 4) {
-            return false
-        }
-
-        val salt = parts[2]
-        val expected = parts[3]
-        val first = hashPassword(password)
-        val computed = sha256Hex(first + salt)
-        return computed.equals(expected, ignoreCase = true)
-    }
-
-    private fun sha256Hex(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val bytes = digest.digest(input.toByteArray(StandardCharsets.UTF_8))
-        return bytes.joinToString("") { byte -> "%02x".format(byte) }
+    /** 把离线条目投影为统一密码表条目，供共享校验/会话服务使用。 */
+    private fun OfflineAuthEntry.toChannelEntry(): icu.h2l.api.password.ChannelPasswordEntry {
+        return icu.h2l.api.password.ChannelPasswordEntry(
+            id = id,
+            channel = icu.h2l.api.password.PasswordChannel.OFFLINE.id,
+            entryId = "",
+            name = name,
+            channelKey = name.lowercase(Locale.ROOT),
+            profileId = profileId,
+            passwordHash = passwordHash,
+            hashFormat = hashFormat,
+            loginFailCount = loginFailCount,
+            loginBlockedUntil = loginBlockedUntil,
+            email = email,
+            recoveryCodeHash = recoveryCodeHash,
+            recoveryCodeExpireAt = recoveryCodeExpireAt,
+            recoveryRequestedAt = recoveryRequestedAt,
+            recoveryVerifyTries = recoveryVerifyTries,
+            resetPasswordVerifiedUntil = resetPasswordVerifiedUntil,
+            sessionIp = sessionIp,
+            sessionIssuedAt = sessionIssuedAt,
+            sessionExpiresAt = sessionExpiresAt,
+            totpSecret = totpSecret,
+        )
     }
 
     private fun validatePassword(username: String, password: String): Result? {
-        val policy = AuthOfflineConfigLoader.getConfig().main.password
-        if (password.length !in policy.minLength..policy.maxLength) {
-            return Result(false, OfflineAuthMessages.unsafePassword(policy.minLength, policy.maxLength))
+        val policy = AuthOfflineConfigLoader.getConfig().main.toChannelPasswordPolicy()
+        return when (val error = passwordService.validateNewPassword(username, password, policy)) {
+            null -> null
+            is ChannelPasswordService.ValidationError.TooShort ->
+                Result(false, OfflineAuthMessages.unsafePassword(policy.minLength, policy.maxLength))
+            is ChannelPasswordService.ValidationError.TooLong ->
+                Result(false, OfflineAuthMessages.unsafePassword(policy.minLength, policy.maxLength))
+            is ChannelPasswordService.ValidationError.ContainsName ->
+                Result(false, OfflineAuthMessages.passwordContainsName(username))
         }
-
-        if (policy.denyNameInPassword && password.lowercase(Locale.ROOT).contains(username.lowercase(Locale.ROOT))) {
-            return Result(false, OfflineAuthMessages.passwordContainsName(username))
-        }
-
-        return null
     }
 
     private fun resolveLoginEntry(player: Player, explicitUsername: String?): OfflineAuthEntry? {
@@ -740,6 +748,24 @@ class OfflineAuthService(
         }
 
         return resolveEntryByPlayer(player)
+    }
+
+    /**
+     * 档案 attach 成功后补全统一密码表的 profileId。
+     *
+     * 统一密码表允许在档案建立前先写入"仅密码行"（profileId 为空），
+     * 旧库迁移的数据也可能缺失 profileId；这里在确认绑定后补齐，
+     * 使 `getByProfileId` 这类按档案索引的查询重新可用。
+     */
+    private fun ensureProfileBinding(name: String, profileId: UUID) {
+        if (profileId == UUID(0L, 0L)) return
+        val entry = repository.getByName(name) ?: return
+        if (entry.profileId == profileId) return
+        runCatching {
+            passwordRepository.bindProfileId(entry.id, profileId)
+        }.onFailure { throwable ->
+            logger.warning("补全统一密码记录 profileId 失败 name=$name pid=$profileId: ${throwable.message}")
+        }
     }
 
     private fun missingLoginEntryMessage(currentName: String, explicitUsername: String?): Component {
@@ -856,21 +882,19 @@ class OfflineAuthService(
     }
 
     private fun issueSession(profileId: UUID, player: Player) {
-        val sessionConfig = AuthOfflineConfigLoader.getConfig().main.session
+        val config = AuthOfflineConfigLoader.getConfig()
+        val policy = config.main.toChannelPasswordPolicy()
         val entry = repository.getByProfileId(profileId)
-        if (entry != null && isTotpEnabled(entry) && !AuthOfflineConfigLoader.getConfig().main.totp.allowSessionBypass) {
+        if (entry != null && isTotpEnabled(entry) && !config.main.totp.allowSessionBypass) {
             repository.clearSession(profileId)
             return
         }
-        if (!sessionConfig.enabled) {
+        if (!policy.sessionEnabled) {
             repository.clearSession(profileId)
             return
         }
-
-        val now = System.currentTimeMillis()
-        val sessionIp = if (sessionConfig.bindIp) getPlayerRemoteAddress(player) else null
-        val expiresAt = now + sessionConfig.expireMinutes.coerceAtLeast(1) * 60_000L
-        repository.issueSession(profileId, sessionIp, now, expiresAt)
+        val currentIp = if (policy.sessionBindIp) getPlayerRemoteAddress(player) else null
+        entry?.let { passwordService.issueSession(it.toChannelEntry(), policy, currentIp) }
     }
 
     private fun getPlayerRemoteAddress(player: Player): String {
@@ -909,9 +933,7 @@ class OfflineAuthService(
     }
 
     companion object {
-        private const val HASH_FORMAT_PLAIN = "plain"
         private const val HASH_FORMAT_SHA256 = "sha256"
-        private const val HASH_FORMAT_AUTHME = "authme"
         private val EMAIL_PATTERN = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
         private const val RECOVERY_CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
     }

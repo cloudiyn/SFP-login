@@ -46,6 +46,10 @@ class ModulesConfig {
     @Comment("config.modules.profile-skin")
     val profileSkin: Boolean = true
 
+    // QQ 绑定白名单；需要 qq-whitelist 模块（monolith 内置或独立 jar）
+    @Comment("config.modules.qq-whitelist")
+    val qqWhitelist: Boolean = true
+
     // 数据迁移
     @Comment("config.modules.data-merge")
     val dataMerge: Boolean = false

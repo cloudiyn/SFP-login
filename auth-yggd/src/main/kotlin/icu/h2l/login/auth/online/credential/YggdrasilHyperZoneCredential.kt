@@ -27,13 +27,22 @@ import java.util.*
 
 class YggdrasilHyperZoneCredential(
     private val entryDatabaseHelper: EntryDatabaseHelper,
-    private val entryId: String,
+    /** 该凭证来源的入口 ID（如 `mojang`、`littleskin`）。 */
+    val entryId: String,
     private val authenticatedName: String,
-    private val authenticatedUUID: UUID,
+    /** 远端 Yggdrasil 认证给出的可信 UUID。 */
+    val authenticatedUUID: UUID,
     private val suggestedProfileCreateUuid: UUID?,
     private val knownProfileId: UUID? = null
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
+
+    /**
+     * 展示渠道标识取具体入口 ID（`mojang` / `littleskin` / `elyby`），
+     * 使登录提示能够区分玩家本次实际使用的验证来源。
+     */
+    override val displayChannelId: String = entryId
+
     override val credentialId: String = "$entryId:$authenticatedUUID"
 
     override fun getRegistrationName(): String = authenticatedName
@@ -61,27 +70,6 @@ class YggdrasilHyperZoneCredential(
             uuid = authenticatedUUID,
             pid = profileId
         )
-    }
-
-    /**
-     * 创建一个更新了建议 UUID 的凭证副本，用于 ReUuid 流程。
-     *
-     * Yggdrasil 认证名与 UUID 由 Mojang 认证，不受 rename 影响；
-     * 仅更新向 Profile 服务建议的建档 UUID（传入 null 表示由核心 ReUuid 逻辑自行决定）。
-     */
-    fun withNewSuggestedUuid(newSuggestedUuid: UUID?): YggdrasilHyperZoneCredential {
-        return YggdrasilHyperZoneCredential(
-            entryDatabaseHelper = entryDatabaseHelper,
-            entryId = entryId,
-            authenticatedName = authenticatedName,
-            authenticatedUUID = authenticatedUUID,
-            suggestedProfileCreateUuid = newSuggestedUuid,
-            knownProfileId = knownProfileId
-        )
-    }
-
-    override fun withReUuidRequest(): YggdrasilHyperZoneCredential {
-        return withNewSuggestedUuid(null)
     }
 
     companion object {

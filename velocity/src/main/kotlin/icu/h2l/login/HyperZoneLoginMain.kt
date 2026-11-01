@@ -34,6 +34,8 @@ import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.WaitingAreaReleaseGateRegistry
+import icu.h2l.api.profile.WaitingAreaReleaseGateRegistryProvider
 import icu.h2l.api.util.ConfigCommentTranslatorProvider
 import icu.h2l.api.util.ConfigFormat
 import icu.h2l.api.util.ConfigFormatProvider
@@ -42,8 +44,6 @@ import icu.h2l.login.config.i18n.ConfigCommentI18nService
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
-import icu.h2l.login.command.ReUuidCommand
-import icu.h2l.login.command.RenameCommand
 import icu.h2l.login.config.*
 import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.database.DatabaseConfig
@@ -60,6 +60,7 @@ import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.CredentialChannelRegistryImpl
 import icu.h2l.login.profile.ProfileBindingCodeService
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
+import icu.h2l.login.profile.WaitingAreaReleaseGateRegistryImpl
 import icu.h2l.login.util.isSnapshotPluginVersion
 import icu.h2l.login.util.readRuntimePluginVersion
 import icu.h2l.login.util.registerApiLogger
@@ -97,6 +98,7 @@ class HyperZoneLoginMain(
     lateinit var bindingCodeService: ProfileBindingCodeService
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
+    lateinit var waitingAreaReleaseGateRegistry: WaitingAreaReleaseGateRegistry
     val serverAdapter: HyperZoneVServerAdapter?
         get() = activeVServerAdapter
     val hyperZonePlayers: HyperZonePlayerAccessor
@@ -147,6 +149,14 @@ class HyperZoneLoginMain(
         connectDatabase()
         // 创建基础表（Profile 表等）
         createBaseTables()
+        // 绑定统一渠道密码存储（三渠道共用），供各认证子模块读取
+        val channelPasswordRepository =
+            icu.h2l.api.password.ChannelPasswordRepository(databaseManager, databaseManager.channelPasswordTable)
+        icu.h2l.api.password.ChannelPasswordProvider.bind(channelPasswordRepository)
+        // 绑定统一渠道密码校验/会话服务（三渠道复用 offline 的校验与会话逻辑）
+        icu.h2l.api.password.ChannelPasswordServiceProvider.bind(
+            icu.h2l.api.password.ChannelPasswordService(channelPasswordRepository)
+        )
         profileService = VelocityHyperZoneProfileService(databaseHelper)
         HyperZoneProfileServiceProvider.bind(profileService)
         loginManager = LoginManager(server, profileService)
@@ -158,6 +168,10 @@ class HyperZoneLoginMain(
             loginManager,
         )
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
+        // 绑定等待区放行闸门注册表：模块可在 register(api) 阶段注册“离开等待区前”的放行校验
+        // （例如 QQ 绑定白名单），核心层在 attach 完成后、真正离开等待区之前同步询问。
+        waitingAreaReleaseGateRegistry = WaitingAreaReleaseGateRegistryImpl()
+        WaitingAreaReleaseGateRegistryProvider.bind(waitingAreaReleaseGateRegistry)
 
         activeVServerAdapter = null
 
@@ -193,21 +207,6 @@ class HyperZoneLoginMain(
             HyperChatCommandRegistration(
                 name = "exit",
                 executor = ExitVServerCommand()
-            )
-        )
-        chatCommandManager.register(
-            HyperChatCommandRegistration(
-                name = "rename",
-                executor = RenameCommand(),
-                brigadier = RenameCommand.brigadier()
-            )
-        )
-        chatCommandManager.register(
-            HyperChatCommandRegistration(
-                name = "reUUID",
-                aliases = setOf("reuuid", "reUuid"),
-                executor = ReUuidCommand(),
-                brigadier = ReUuidCommand.brigadier()
             )
         )
         BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
@@ -266,6 +265,7 @@ class HyperZoneLoginMain(
         registerEmbeddedModule(EmbeddedModuleRegistry.authYggd, coreConfig.modules.authYggd)
         registerEmbeddedModule(EmbeddedModuleRegistry.safe, coreConfig.modules.safe)
         registerEmbeddedModule(EmbeddedModuleRegistry.profileSkin, coreConfig.modules.profileSkin)
+        registerEmbeddedModule(EmbeddedModuleRegistry.qqWhitelist, coreConfig.modules.qqWhitelist)
         registerEmbeddedModule(EmbeddedModuleRegistry.dataMerge, coreConfig.modules.dataMerge)
     }
 

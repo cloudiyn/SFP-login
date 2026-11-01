@@ -40,6 +40,12 @@ object OfflineAuthBrigadierCommands {
         }
     }
 
+    /**
+     * `/login <password> [code]`。
+     *
+     * 每个中间节点都要挂 `.executes` 透传已输入的参数，
+     * 否则玩家只输一部分时会被 brigadier 直接拒绝，看不到用法提示。
+     */
     private fun loginPassword(context: HyperChatBrigadierContext) =
         word("password")
             .executes { commandContext ->
@@ -63,10 +69,31 @@ object OfflineAuthBrigadierCommands {
                     }
             )
 
+    /**
+     * `/login as <username> <password> [code]`。
+     *
+     * 与 [loginPassword] 同理，中间节点必须挂 `.executes` 透传已输入参数，
+     * 否则玩家少输参数时 brigadier 直接拒绝执行，看不到用法提示。
+     */
     private fun loginAs(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("as")
+            .executes { commandContext ->
+                context.execute(
+                    commandContext.source,
+                    args = arrayOf("as")
+                )
+            }
             .then(
                 word("username")
+                    .executes { commandContext ->
+                        context.execute(
+                            commandContext.source,
+                            args = arrayOf(
+                                "as",
+                                StringArgumentType.getString(commandContext, "username")
+                            )
+                        )
+                    }
                     .then(
                         word("password")
                             .executes { commandContext ->
@@ -108,6 +135,14 @@ object OfflineAuthBrigadierCommands {
                 }
                 .then(
                     word("oldPassword")
+                        .executes { commandContext ->
+                            context.execute(
+                                commandContext.source,
+                                args = arrayOf(
+                                    StringArgumentType.getString(commandContext, "oldPassword")
+                                )
+                            )
+                        }
                         .then(
                             word("newPassword")
                                 .executes { commandContext ->
@@ -179,10 +214,32 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailAdd(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("add")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("add"))
+            }
             .then(
                 word("currentPassword")
+                    .executes { commandContext ->
+                        context.execute(
+                            commandContext.source,
+                            args = arrayOf(
+                                "add",
+                                StringArgumentType.getString(commandContext, "currentPassword")
+                            )
+                        )
+                    }
                     .then(
                         word("email")
+                            .executes { commandContext ->
+                                context.execute(
+                                    commandContext.source,
+                                    args = arrayOf(
+                                        "add",
+                                        StringArgumentType.getString(commandContext, "currentPassword"),
+                                        StringArgumentType.getString(commandContext, "email")
+                                    )
+                                )
+                            }
                             .then(
                                 word("confirmEmail")
                                     .executes { commandContext ->
@@ -202,10 +259,32 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailChange(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("change")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("change"))
+            }
             .then(
                 word("currentPassword")
+                    .executes { commandContext ->
+                        context.execute(
+                            commandContext.source,
+                            args = arrayOf(
+                                "change",
+                                StringArgumentType.getString(commandContext, "currentPassword")
+                            )
+                        )
+                    }
                     .then(
                         word("oldEmail")
+                            .executes { commandContext ->
+                                context.execute(
+                                    commandContext.source,
+                                    args = arrayOf(
+                                        "change",
+                                        StringArgumentType.getString(commandContext, "currentPassword"),
+                                        StringArgumentType.getString(commandContext, "oldEmail")
+                                    )
+                                )
+                            }
                             .then(
                                 word("newEmail")
                                     .executes { commandContext ->
@@ -225,6 +304,9 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailShow(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("show")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("show"))
+            }
             .then(
                 word("currentPassword")
                     .executes { commandContext ->
@@ -240,6 +322,9 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailRecovery(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("recovery")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("recovery"))
+            }
             .then(
                 word("email")
                     .executes { commandContext ->
@@ -255,6 +340,9 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailCode(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("code")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("code"))
+            }
             .then(
                 word("verificationCode")
                     .executes { commandContext ->
@@ -270,8 +358,20 @@ object OfflineAuthBrigadierCommands {
 
     private fun emailSetPassword(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("setpassword")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("setpassword"))
+            }
             .then(
                 word("newPassword")
+                    .executes { commandContext ->
+                        context.execute(
+                            commandContext.source,
+                            args = arrayOf(
+                                "setpassword",
+                                StringArgumentType.getString(commandContext, "newPassword")
+                            )
+                        )
+                    }
                     .then(
                         word("confirmPassword")
                             .executes { commandContext ->
@@ -289,6 +389,9 @@ object OfflineAuthBrigadierCommands {
 
     private fun totpAdd(context: HyperChatBrigadierContext, literal: String) =
         BrigadierCommand.literalArgumentBuilder(literal)
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf(literal))
+            }
             .then(
                 word("password")
                     .executes { commandContext ->
@@ -304,6 +407,9 @@ object OfflineAuthBrigadierCommands {
 
     private fun totpConfirm(context: HyperChatBrigadierContext) =
         BrigadierCommand.literalArgumentBuilder("confirm")
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf("confirm"))
+            }
             .then(
                 word("code")
                     .executes { commandContext ->
@@ -319,8 +425,20 @@ object OfflineAuthBrigadierCommands {
 
     private fun totpRemove(context: HyperChatBrigadierContext, literal: String) =
         BrigadierCommand.literalArgumentBuilder(literal)
+            .executes { commandContext ->
+                context.execute(commandContext.source, args = arrayOf(literal))
+            }
             .then(
                 word("password")
+                    .executes { commandContext ->
+                        context.execute(
+                            commandContext.source,
+                            args = arrayOf(
+                                literal,
+                                StringArgumentType.getString(commandContext, "password")
+                            )
+                        )
+                    }
                     .then(
                         word("code")
                             .executes { commandContext ->
@@ -336,6 +454,14 @@ object OfflineAuthBrigadierCommands {
                     )
             )
 
+    /**
+     * 双密码参数命令（如 `/register <password> <confirmPassword>`）。
+     *
+     * 注意：每个参数节点都必须挂 `.executes`，否则玩家只输入一部分参数时
+     * brigadier 会因为"找不到可执行节点"直接拒绝执行，命令根本到不了 gate，
+     * 玩家也就看不到任何用法提示（表现为"输错了没反应"）。
+     * 这里把已经输入的部分参数原样透传，由 gate 负责给出 usage / 不匹配提示。
+     */
     private fun doublePasswordCommand(
         name: String,
         firstArgumentName: String,
@@ -348,6 +474,14 @@ object OfflineAuthBrigadierCommands {
                 }
                 .then(
                     word(firstArgumentName)
+                        .executes { commandContext ->
+                            context.execute(
+                                commandContext.source,
+                                args = arrayOf(
+                                    StringArgumentType.getString(commandContext, firstArgumentName)
+                                )
+                            )
+                        }
                         .then(
                             word(secondArgumentName)
                                 .executes { commandContext ->

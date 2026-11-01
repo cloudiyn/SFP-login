@@ -41,7 +41,11 @@ class OfflinePreLoginListener {
         val cfg = AuthOfflineConfigLoader.getConfig().match
         if (!cfg.enable) return
 
-        val offlineHost = cfg.hostMatch.start.any { it.startsWith(host) }
+        // 注意：这里必须判断「玩家连接的 host 是否以配置前缀开头」。
+        // 早期实现写成 `prefix.startsWith(host)`（参数写反），导致 host 匹配永远为 false，
+        // 离线玩家无法通过 host 兜底判定为离线，从而被当成在线模式走 Yggdrasil，
+        // 最终被后端以「无效会话」拒绝。判断方向必须保持 host.startsWith(prefix)。
+        val offlineHost = matchesOfflineHost(cfg.hostMatch.start, host)
         if (offlineHost) {
             info { "匹配到离线 host 玩家: $name" }
         }
@@ -49,6 +53,23 @@ class OfflinePreLoginListener {
 
         event.isOnline = !(offlineUUIDType != OfflineUUIDType.UNKNOWN || offlineHost)
         info { "传入 UUID 信息玩家: $name UUID:$uuid 类型: $offlineUUIDType 在线:${event.isOnline}" }
+    }
+
+    companion object {
+        /**
+         * 判断玩家连接使用的 host 是否命中了「离线入口」前缀配置。
+         *
+         * 命中规则：`host` 以 `prefixes` 中任一前缀开头（大小写不敏感）。
+         * 例如默认配置 `prefixes = ["offline", "o-"]` 时，`offline.example.com`、`o-1.example.com` 都会命中，
+         * 而 `play.example.com`、`starfallplain.cn` 不会命中。
+         */
+        internal fun matchesOfflineHost(prefixes: List<String>, host: String): Boolean {
+            val normalizedHost = host.trim()
+            if (normalizedHost.isEmpty()) return false
+            return prefixes.any { prefix ->
+                prefix.isNotBlank() && normalizedHost.startsWith(prefix, ignoreCase = true)
+            }
+        }
     }
 }
 

@@ -25,6 +25,12 @@ import icu.h2l.api.db.table.ProfileTable
 import org.jetbrains.exposed.sql.Table
 import java.util.*
 
+/**
+ * Floodgate 绑定记录。
+ *
+ * 只承载 xuid ↔ profileId ↔ name 的身份绑定；本地密码已统一交由 offline 渠道管理，
+ * 不再在本表存放任何密码字段。
+ */
 data class FloodgateAuthEntry(
     val id: Int,
     val name: String,
@@ -54,4 +60,3 @@ class FloodgateAuthTable(prefix: String, profileTable: ProfileTable) : Table("${
 
     override val primaryKey = PrimaryKey(id)
 }
-

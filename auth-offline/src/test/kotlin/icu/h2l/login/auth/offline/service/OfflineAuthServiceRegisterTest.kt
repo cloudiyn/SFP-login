@@ -64,7 +64,7 @@ class OfflineAuthServiceRegisterTest {
     private lateinit var service: OfflineAuthService
     private lateinit var pendingRegistrations: PendingOfflineRegistrationManager
     private lateinit var profileTable: ProfileTable
-    private lateinit var offlineAuthTable: OfflineAuthTable
+    private lateinit var offlineAuthTable: icu.h2l.api.db.table.ChannelPasswordTable
     private lateinit var database: Database
 
     @BeforeEach
@@ -77,7 +77,7 @@ class OfflineAuthServiceRegisterTest {
             driver = "org.h2.Driver"
         )
         profileTable = ProfileTable()
-        offlineAuthTable = OfflineAuthTable("", profileTable)
+        offlineAuthTable = icu.h2l.api.db.table.ChannelPasswordTable("", profileTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -89,7 +89,13 @@ class OfflineAuthServiceRegisterTest {
             SchemaUtils.create(profileTable, offlineAuthTable)
         }
 
-        repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
+        val channelPasswordRepository =
+            icu.h2l.api.password.ChannelPasswordRepository(databaseManager, offlineAuthTable)
+        icu.h2l.api.password.ChannelPasswordProvider.bind(channelPasswordRepository)
+        icu.h2l.api.password.ChannelPasswordServiceProvider.bind(
+            icu.h2l.api.password.ChannelPasswordService(channelPasswordRepository)
+        )
+        repository = OfflineAuthRepository(passwordRepository = channelPasswordRepository)
         player = mockk(relaxed = true)
         hyperZonePlayer = mockk(relaxUnitFun = true)
         proxy = mockk(relaxed = true)
@@ -316,7 +322,7 @@ class OfflineAuthServiceRegisterTest {
     }
 
     @Test
-    fun `register pending credential keeps offline uuid suggestion across rename when passthrough is enabled`() {
+    fun `register pending credential keeps offline uuid suggestion when passthrough is enabled`() {
         enableOfflineUuidPassthrough()
 
         val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
@@ -336,14 +342,6 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(credentialSlot.isCaptured)
         assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
 
-        val renamed = credentialSlot.captured.withNewName("Alice_Renamed")
-
-        assertEquals(
-            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
-            renamed.getSuggestedProfileCreateUuid()
-        )
-        // original captured credential remains immutable
-        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
         verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
         }) }

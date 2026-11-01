@@ -43,6 +43,7 @@ import com.velocitypowered.proxy.protocol.packet.config.FinishedUpdatePacket
 import com.velocitypowered.proxy.protocol.packet.config.KnownPacksPacket
 import com.velocitypowered.proxy.protocol.packet.config.StartUpdatePacket
 import com.velocitypowered.proxy.protocol.util.PluginMessageUtil
+import icu.h2l.login.inject.network.NettyReflectionHelper
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedTeardown
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.vServer.outpre.OutPreBackendBridge
@@ -109,11 +110,17 @@ open class OutPreClientBridgeSessionHandlerLogic(
     fun releaseToVelocity(server: VelocityServer, onReleased: () -> Unit) {
         player.connection.eventLoop().execute {
             if (player.protocolVersion.lessThan(ProtocolVersion.MINECRAFT_1_20_2)) {
-//                player.connection.setActiveSessionHandler(
-//                    StateRegistry.PLAY,
-//                    NettyReflectionHelper.createInitialConnectSessionHandler(player, server)
-//                )
-                player.connection.state= StateRegistry.PLAY
+                // 低版本没有 configuration 阶段：客户端在 startTemporaryLoginPhase 里已被切到 PLAY，
+                // 但进入等待区桥接时又临时切到了 LOGIN（见 BridgeWaitingAreaJoinSession.begin），
+                // 因此这里必须走 setActiveSessionHandler 把 Netty 的 encoder/decoder 一起恢复到 PLAY。
+                // 之前直接写 `player.connection.state = StateRegistry.PLAY` 只改了状态字段，
+                // codec 仍停留在 LOGIN，客户端随后收发包会报
+                // "Pipeline has no inbound protocol configured, can't process packet"，
+                // 表现为玩家无法登录并在协议切换瞬间被断开。
+                player.connection.setActiveSessionHandler(
+                    StateRegistry.PLAY,
+                    NettyReflectionHelper.createInitialConnectSessionHandler(player, server)
+                )
                 onReleased()
                 return@execute
             }

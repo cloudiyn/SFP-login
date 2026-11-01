@@ -36,6 +36,7 @@ import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.getChannel
+import icu.h2l.api.profile.ChannelPasswordGateRegistry
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
@@ -157,7 +158,18 @@ class OutPreVServerAuth(
         }
 
         val outpreConfig = HyperZoneLoginMain.getCoreConfig().vServer.outpre
-        val isStruck = outpreConfig.struckOnlineMode && hyperPlayer.isOnlinePlayer
+        // 渠道密码门需要玩家在游戏内手动输入 /register、/login：
+        // struck 直通模式会让客户端一直停在 LOGIN 阶段，玩家根本无法输入命令，
+        // 最终被客户端自身的读超时断开。因此只要预判会弹密码门，就强制走等待区桥接。
+        val passwordGatePending = ChannelPasswordGateRegistry.willHold(hyperPlayer)
+        val isStruck = outpreConfig.struckOnlineMode && hyperPlayer.isOnlinePlayer && !passwordGatePending
+        if (passwordGatePending) {
+            trace(
+                "beginInitialJoin password-gate-pending channel=${
+                    player.getChannel().id()
+                } player=${player.username} forcing-waiting-area-bridge"
+            )
+        }
         val session = OutPreInitialJoinSessionFactory.create(
             struck = isStruck,
             player = player,

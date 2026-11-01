@@ -26,7 +26,9 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
+import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
+import icu.h2l.api.password.ChannelPasswordMigrator
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthTable
 import org.jetbrains.exposed.sql.SchemaUtils
 
@@ -34,14 +36,36 @@ class FloodgateAuthTableManager(
     private val databaseManager: HyperZoneDatabaseManager,
     tablePrefix: String,
     profileTable: ProfileTable,
+    /** 统一密码表仓库；由核心在启动时绑定，这里默认取全局实例。 */
+    private val passwordRepository: icu.h2l.api.password.ChannelPasswordRepository? =
+        icu.h2l.api.password.ChannelPasswordProvider.getOrNull(),
 ) {
     val floodgateAuthTable = FloodgateAuthTable(tablePrefix, profileTable)
 
-    @Suppress("DEPRECATION")
+    /** 旧密码数据迁移器（把 floodgate_auth 的旧密码列按玩家名搬进统一密码表的 offline 渠道）。 */
+    private val passwordMigrator: ChannelPasswordMigrator? by lazy {
+        val repository = passwordRepository ?: icu.h2l.api.password.ChannelPasswordProvider.getOrNull()
+        repository?.let { ChannelPasswordMigrator(databaseManager, it) }
+    }
+
     fun createTable() {
         databaseManager.executeTransaction {
+            @Suppress("DEPRECATION")
             SchemaUtils.createMissingTablesAndColumns(floodgateAuthTable, withLogs = false)
         }
+        // 旧库可能已带密码列：迁移到统一密码表后清空旧密码列（绑定行 name/xuid/profileId 保留）
+        val migrator = passwordMigrator
+        if (migrator == null) {
+            warn { "统一密码表尚未就绪，跳过 floodgate_auth 的密码列迁移" }
+            return
+        }
+        runCatching {
+            val migrated = migrator.migrateFloodgateTable(floodgateAuthTable.tableName)
+            if (migrated > 0) {
+                info { "已迁移 $migrated 条 Floodgate 密码记录到统一密码表" }
+                migrator.clearFloodgatePasswordColumns(floodgateAuthTable.tableName)
+            }
+        }.onFailure { warn { "迁移 floodgate_auth 密码失败：${it.message}" } }
     }
 
     fun dropTable() {

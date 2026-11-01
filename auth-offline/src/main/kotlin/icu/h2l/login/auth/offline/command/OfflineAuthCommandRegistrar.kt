@@ -21,11 +21,23 @@
 
 package icu.h2l.login.auth.offline.command
 
+import icu.h2l.api.command.ChannelPasswordCommands
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
 import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 object OfflineAuthCommandRegistrar {
+    /**
+     * 注册离线模块命令。
+     *
+     * login / register / changepassword 使用 [ChannelPasswordCommands] 的共享 executor 与共享 brigadier：
+     * 这些命令在多个认证模块中语义相同，最终由玩家所属渠道的密码门处理，
+     * 因此无论哪个模块的同名注册最终生效，行为都保持一致。
+     *
+     * 共享 brigadier 统一采用"贪婪字符串透传"：
+     * 这样玩家无论少输/多输参数，命令都能到达 gate，
+     * 由 gate 给出用法提示，而不是被 brigadier 直接拒绝导致"输错了没反应"。
+     */
     fun registerAll(
         commandManager: HyperChatCommandManager,
         authService: OfflineAuthService
@@ -34,24 +46,24 @@ object OfflineAuthCommandRegistrar {
             HyperChatCommandRegistration(
                 name = "login",
                 aliases = setOf("l"),
-                executor = LoginCommand(authService),
-                brigadier = OfflineAuthBrigadierCommands.login()
+                executor = ChannelPasswordCommands.LoginExecutor(),
+                brigadier = ChannelPasswordCommands.greedyArgumentsBrigadier()
             )
         )
         commandManager.register(
             HyperChatCommandRegistration(
                 name = "register",
                 aliases = setOf("reg"),
-                executor = RegisterCommand(authService),
-                brigadier = OfflineAuthBrigadierCommands.register()
+                executor = ChannelPasswordCommands.RegisterExecutor(),
+                brigadier = ChannelPasswordCommands.greedyArgumentsBrigadier()
             )
         )
         commandManager.register(
             HyperChatCommandRegistration(
                 name = "changepassword",
                 aliases = setOf("cpass", "changepass"),
-                executor = ChangePasswordCommand(authService),
-                brigadier = OfflineAuthBrigadierCommands.changePassword()
+                executor = ChannelPasswordCommands.ChangePasswordExecutor(),
+                brigadier = ChannelPasswordCommands.greedyArgumentsBrigadier()
             )
         )
         commandManager.register(

@@ -34,29 +34,6 @@ object MessageKeys {
         const val WAITING_AREA_ONLY = "chat.waiting-area-only"
     }
 
-    object Rename {
-        const val USAGE = "rename.usage"
-        const val NOT_IN_WAITING_AREA = "rename.not-in-waiting-area"
-        const val ALREADY_BOUND = "rename.already-bound"
-        const val SAME_AS_CURRENT = "rename.same-as-current"
-        const val CREATE_BLOCKED = "rename.create-blocked"
-        const val CONTEXT_CONFLICT = "rename.context-conflict"
-        const val SUCCESS = "rename.success"
-        const val REMEMBER_NAME = "rename.remember-name"
-        const val REUUID_REQUIRED = "rename.reuuid-required"
-        const val EVENT_FAILED = "rename.event-failed"
-    }
-
-    object ReUuid {
-        const val USAGE = "reuuid.usage"
-        const val NOT_IN_WAITING_AREA = "reuuid.not-in-waiting-area"
-        const val ALREADY_BOUND = "reuuid.already-bound"
-        const val CREATE_BLOCKED = "reuuid.create-blocked"
-        const val CONTEXT_CONFLICT = "reuuid.context-conflict"
-        const val SUCCESS = "reuuid.success"
-        const val EVENT_FAILED = "reuuid.event-failed"
-    }
-
     object BindCode {
         const val COMMAND_USAGE = "bindcode.command-usage"
         const val COMMAND_USE_USAGE = "bindcode.command-use-usage"
@@ -85,6 +62,7 @@ object MessageKeys {
         const val USAGE_BINDCODE_GENERATE = "hzl.usage.bindcode-generate"
         const val USAGE_BINDCODE_USE = "hzl.usage.bindcode-use"
         const val USAGE_UUID = "hzl.usage.uuid"
+        const val USAGE_PASSWORD = "hzl.usage.password"
         const val RELOADED = "hzl.reloaded"
         const val REAUTH_START = "hzl.reauth-start"
         const val AUTH_FLOW_UNAVAILABLE = "hzl.auth-flow-unavailable"
@@ -93,6 +71,10 @@ object MessageKeys {
         const val UUID_HYPER_PLAYER = "hzl.uuid.hyper-player"
         const val UUID_PROFILE = "hzl.uuid.profile"
         const val UUID_PROFILE_NULL = "hzl.uuid.profile-null"
+        const val PASSWORD_USAGE = "hzl.password.usage"
+        const val PASSWORD_NOT_FOUND = "hzl.password.not-found"
+        const val PASSWORD_SET_SUCCESS = "hzl.password.set-success"
+        const val PASSWORD_SET_FAILED = "hzl.password.set-failed"
     }
 
     object Player {
@@ -103,6 +85,16 @@ object MessageKeys {
         const val VERIFIED_UNBOUND = "player.verified-unbound"
         const val PROFILE_CONFLICT_SELF = "player.profile-conflict-self"
         const val PROFILE_CONFLICT_OTHER = "player.profile-conflict-other"
+
+        /**
+         * 验证通过后告知玩家"本次使用的是哪种验证方式"，并提醒不同方式的档案数据互不相通。
+         */
+        const val AUTH_CHANNEL_NOTICE = "player.auth-channel-notice"
+
+        /**
+         * 渠道显示名前缀，完整键为 `player.auth-channel-name.<channelId>`。
+         */
+        const val AUTH_CHANNEL_NAME_PREFIX = "player.auth-channel-name"
     }
 
     object BackendAuth {

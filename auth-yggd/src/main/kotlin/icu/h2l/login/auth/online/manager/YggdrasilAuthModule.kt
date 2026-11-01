@@ -69,13 +69,14 @@ class YggdrasilAuthModule(
     profileService: HyperZoneProfileService,
     private val playerAccessor: HyperZonePlayerAccessor
 ) : YggdrasilAuthFlow {
+    private val entryDatabaseHelper = EntryDatabaseHelper(
+        databaseManager = databaseManager,
+        entryTableManager = entryTableManager
+    )
     private val credentialService = YggdrasilCredentialService(
         entryConfigManager = entryConfigManager,
         profileService = profileService,
-        entryDatabaseHelper = EntryDatabaseHelper(
-            databaseManager = databaseManager,
-            entryTableManager = entryTableManager
-        )
+        entryDatabaseHelper = entryDatabaseHelper
     )
     private val remoteAuthService = YggdrasilRemoteAuthService(
         proxy = proxy,
@@ -315,42 +316,59 @@ class YggdrasilAuthModule(
     ) {
         val channel = player.getChannel()
         try {
-            if (session.hasAttachedProfile()) {
-                completeWaitingAreaClaims(channel, LoginHandleResult.success())
-                return
-            }
-
-            if (!preparedAuth.shouldOverVerify) {
-                val message = when (val result = preparedAuth.result) {
-                    is YggdrasilAuthResult.Failed -> result.reason
-                    is YggdrasilAuthResult.Timeout -> "Yggdrasil authentication timeout"
-                    is YggdrasilAuthResult.NoEntriesConfigured -> "No Yggdrasil providers configured"
-                    is YggdrasilAuthResult.Success -> "Yggdrasil verification not ready"
-                }
-                completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
-                return
-            }
-            val preparedCredential = preparedAuth.credentialToSubmit
-            val profileIdHint = preparedCredential?.getBoundProfileId()
-            completeWaitingAreaClaims(
-                channel,
-                LoginHandleResult.success(
-                    credential = preparedCredential,
-                    profileIdHint = profileIdHint
-                )
-            )
-
-            val success = preparedAuth.result as? YggdrasilAuthResult.Success
-            if (success != null) {
-                debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
-                    "玩家 ${player.username} 凭证准备完成，等待 LoginManager 完成 attach，Entry: ${success.entryId}"
-                }
-            }
+            dispatchOrHold(player, session, preparedAuth)
         } catch (throwable: Throwable) {
             val message = throwable.message ?: "Yggdrasil credential submit failed"
             completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
-        } finally {
-            clearTransientStateAfterDispatch(player)
+        }
+
+        clearTransientStateAfterDispatch(player)
+    }
+
+    /**
+     * 提交 Yggdrasil 远端验证得到的凭证。
+     *
+     * 本地密码门已统一交由 offline 渠道处理（渠道密码门体系），
+     * 本流程只负责把远端验证结果转成最终登录结果。
+     */
+    private fun dispatchOrHold(
+        player: Player,
+        session: LoginHandleSession,
+        preparedAuth: PreparedYggdrasilAuth
+    ) {
+        val channel = player.getChannel()
+
+        if (session.hasAttachedProfile()) {
+            completeWaitingAreaClaims(channel, LoginHandleResult.success())
+            return
+        }
+
+        if (!preparedAuth.shouldOverVerify) {
+            val message = when (val result = preparedAuth.result) {
+                is YggdrasilAuthResult.Failed -> result.reason
+                is YggdrasilAuthResult.Timeout -> "Yggdrasil authentication timeout"
+                is YggdrasilAuthResult.NoEntriesConfigured -> "No Yggdrasil providers configured"
+                is YggdrasilAuthResult.Success -> "Yggdrasil verification not ready"
+            }
+            completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
+            return
+        }
+
+        val preparedCredential = preparedAuth.credentialToSubmit
+        val profileIdHint = preparedCredential?.getBoundProfileId()
+        completeWaitingAreaClaims(
+            channel,
+            LoginHandleResult.success(
+                credential = preparedCredential,
+                profileIdHint = profileIdHint
+            )
+        )
+
+        val success = preparedAuth.result as? YggdrasilAuthResult.Success
+        if (success != null) {
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+                "玩家 ${player.username} 凭证准备完成，等待 LoginManager 完成 attach，Entry: ${success.entryId}"
+            }
         }
     }
 

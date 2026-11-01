@@ -62,17 +62,21 @@ class FloodgateVServerAuthListener(
                     LoginHandleResult.failed("floodgate authentication rejected")
                 )
             }
-            CompletableFuture.completedFuture(
+
+            val success = {
                 LoginHandleResult.success(
                     credential = result.credential,
                     profileIdHint = result.profileIdHint
                 )
-            )
+            }
+
+            CompletableFuture.completedFuture(success())
         }
     }
 
     @Subscribe
     fun onDisconnect(event: DisconnectEvent) {
-        authService.clear(event.player.getChannel())
+        val channel = event.player.getChannel()
+        authService.clear(channel)
     }
 }

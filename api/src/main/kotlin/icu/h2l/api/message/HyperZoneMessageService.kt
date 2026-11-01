@@ -50,6 +50,14 @@ interface HyperZoneMessageService {
      * 按登录态玩家上下文渲染指定消息键。
      */
     fun render(player: HyperZonePlayer, key: String, vararg placeholders: HyperZoneMessagePlaceholder): Component
+
+    /**
+     * 判断指定消息键在当前已加载的消息资源中是否存在（任意语言链中可解析即可）。
+     *
+     * 模块消息 helper 可用它实现“资源文件缺失新键时回退到代码内置文案”，
+     * 从而兼容从旧版本升级、尚未更新落盘消息文件的数据目录。
+     */
+    fun hasKey(key: String): Boolean = false
 }
 
 /**

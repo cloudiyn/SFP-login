@@ -54,6 +54,13 @@ class DatabaseManager(
     private val profileTable = ProfileTable(config.tablePrefix)
     private val bindingCodeTable = BindingCodeTable(config.tablePrefix, profileTable)
 
+    /**
+     * 统一渠道密码表。
+     *
+     * 三个认证渠道（offline / yggdrasil / floodgate）共用这一张表存放本地密码。
+     */
+    val channelPasswordTable = icu.h2l.api.db.table.ChannelPasswordTable(config.tablePrefix, profileTable)
+
     override val tablePrefix: String
         get() = config.tablePrefix
 
@@ -132,6 +139,9 @@ class DatabaseManager(
         transaction(database) {
             // 创建档案表
             SchemaUtils.create(profileTable, bindingCodeTable)
+            // 统一渠道密码表（三渠道共用）
+            @Suppress("DEPRECATION")
+            SchemaUtils.createMissingTablesAndColumns(channelPasswordTable, withLogs = false)
         }
     }
     
@@ -145,9 +155,9 @@ class DatabaseManager(
         proxy.eventManager.fire(TableSchemaEvent(TableSchemaAction.DROP_ALL)).join()
 
         executeTransaction {
-            // 删除档案表
-            SchemaUtils.drop(bindingCodeTable, profileTable)
-            warn { "已删除表: ${profileTable.tableName}" }
+            // 删除统一渠道密码表、绑定码表与档案表
+            SchemaUtils.drop(channelPasswordTable, bindingCodeTable, profileTable)
+            warn { "已删除表: ${channelPasswordTable.tableName}, ${bindingCodeTable.tableName}, ${profileTable.tableName}" }
         }
 
         warn { "数据库表已全部删除！" }

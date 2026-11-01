@@ -21,6 +21,7 @@
 
 package icu.h2l.login.auth.offline.config
 
+import icu.h2l.api.password.ChannelPasswordPolicy
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 
@@ -53,6 +54,21 @@ class OfflineAuthConfig {
     // TOTP 二步验证
     @Comment("config.offline.totp")
     val totp = TotpConfig()
+
+    /**
+     * 映射为三渠道共享的密码校验/会话策略。
+     */
+    fun toChannelPasswordPolicy(): ChannelPasswordPolicy = ChannelPasswordPolicy(
+        minLength = password.minLength,
+        maxLength = password.maxLength,
+        denyNameInPassword = password.denyNameInPassword,
+        maxAttempts = login.maxAttempts,
+        blockSeconds = login.blockSeconds,
+        sessionEnabled = session.enabled,
+        sessionExpireMinutes = session.expireMinutes,
+        sessionBindIp = session.bindIp,
+        sessionIssueOnRegister = session.issueOnRegister,
+    )
 
     @ConfigSerializable
     class PasswordPolicy {
@@ -190,7 +206,7 @@ class OfflineAuthConfig {
     class SessionConfig {
         // 短期会话自动登录
         @Comment("config.offline.session.enabled")
-        val enabled = false
+        val enabled = true
 
         // 会话有效期（分钟）
         @Comment("config.offline.session.expire-minutes")

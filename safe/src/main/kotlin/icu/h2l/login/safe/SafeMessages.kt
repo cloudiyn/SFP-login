@@ -34,10 +34,13 @@ object SafeMessages {
 
     fun entryRejected(reason: Component): Component {
         val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(
-            "$NAMESPACE.entry-rejected",
-            HyperZoneMessagePlaceholder.component("reason", reason)
-        ) ?: Component.text("连接已被入口防护拒绝：${reason}")
+        if (service != null && service.hasKey("$NAMESPACE.entry-rejected")) {
+            return service.render(
+                "$NAMESPACE.entry-rejected",
+                HyperZoneMessagePlaceholder.component("reason", reason)
+            )
+        }
+        return Component.text("连接已被入口防护拒绝：$reason")
     }
 
     fun authFailureCooldown(seconds: Long): Component {
@@ -93,14 +96,18 @@ object SafeMessages {
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
         val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render("$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        // 消息服务在键缺失时返回 "Missing message" 占位文本而不是 null，必须先用 hasKey 判断，
+        // 缺键时回退到代码内置文案，兼容旧版本升级后落盘消息文件尚未补齐新键的数据目录。
+        if (service != null && service.hasKey("$NAMESPACE.$key")) {
+            return service.render("$NAMESPACE.$key", *placeholders)
+        }
+        return Component.text(placeholders.fold(fallback) { acc, placeholder ->
+            val replacement = when (placeholder) {
+                is HyperZoneMessagePlaceholder.Text -> placeholder.value
+                is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
+            }
+            acc.replace("<${placeholder.name}>", replacement)
+        })
     }
 }
 

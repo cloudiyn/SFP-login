@@ -76,7 +76,7 @@ class LoginCommandTest {
             driver = "org.h2.Driver"
         )
         profileTable = ProfileTable()
-        val offlineAuthTable = OfflineAuthTable("", profileTable)
+        val passwordTable = icu.h2l.api.db.table.ChannelPasswordTable("", profileTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -85,11 +85,17 @@ class LoginCommandTest {
             }
         }
         transaction(database) {
-            SchemaUtils.create(profileTable, offlineAuthTable)
+            SchemaUtils.create(profileTable, passwordTable)
         }
 
-        repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
-        player = mockk(relaxUnitFun = true)
+        val channelPasswordRepository =
+            icu.h2l.api.password.ChannelPasswordRepository(databaseManager, passwordTable)
+        icu.h2l.api.password.ChannelPasswordProvider.bind(channelPasswordRepository)
+        icu.h2l.api.password.ChannelPasswordServiceProvider.bind(
+            icu.h2l.api.password.ChannelPasswordService(channelPasswordRepository)
+        )
+        repository = OfflineAuthRepository(passwordRepository = channelPasswordRepository)
+        player = mockk(relaxed = true)
         hyperZonePlayer = mockk(relaxUnitFun = true)
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)

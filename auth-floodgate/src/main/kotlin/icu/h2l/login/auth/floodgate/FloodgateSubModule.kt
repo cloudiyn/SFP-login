@@ -48,6 +48,7 @@ class FloodgateSubModule : HyperSubModule {
             databaseManager = api.databaseManager,
             tablePrefix = api.databaseManager.tablePrefix,
             profileTable = profileTable,
+            passwordRepository = icu.h2l.api.password.ChannelPasswordProvider.getOrNull(),
         )
         val repository = FloodgateAuthRepository(
             databaseManager = api.databaseManager,
@@ -67,6 +68,9 @@ class FloodgateSubModule : HyperSubModule {
         api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService, floodgateApiHolder))
         api.proxy.eventManager.register(api, FloodgateVServerAuthListener(authService))
         api.proxy.eventManager.register(api, FloodgateLoginProfileReplaceListener())
+
+        // 渠道密码共享命令与统一密码门由 offline 渠道负责注册与路由，本渠道不再注册自己的密码门
+
         info {
             "FloodgateSubModule 已加载；已创建 Floodgate 专属凭证绑定表，并在 OpenStartAuth 与初始档案校验阶段补注册 Floodgate 接管监听器；自动去除 Floodgate API 玩家名前缀=${config.stripUsernamePrefix}；Profile 解析透传 Floodgate UUID=${config.passFloodgateUuidToProfileResolve}"
         }

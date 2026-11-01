@@ -228,12 +228,25 @@ class MlDataMigrator(
                             logger.log("[ENTRY][CREATED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId whitelist=${sourceUser.whitelist}")
                         } else {
                             val existingPid = existing[entryTable.pid]
-                            if (existingPid == profileId) {
-                                report.targetEntriesMatched++
-                                logger.log("[ENTRY][MATCHED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId")
-                            } else {
-                                report.targetEntryConflicts++
-                                logger.log("[ENTRY][CONFLICT] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} existedPid=$existingPid incomingPid=$profileId")
+                            when {
+                                existingPid == profileId -> {
+                                    report.targetEntriesMatched++
+                                    logger.log("[ENTRY][MATCHED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId")
+                                }
+
+                                // 该行可能只是密码门预先落下的"仅密码"记录（pid 为空），补全绑定即可
+                                existingPid == null -> {
+                                    entryTable.update({ (entryTable.name eq onlineName) and (entryTable.uuid eq sourceUser.onlineUuid) }) {
+                                        it[pid] = profileId
+                                    }
+                                    report.targetEntriesCreated++
+                                    logger.log("[ENTRY][BOUND] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId (补全未绑定记录)")
+                                }
+
+                                else -> {
+                                    report.targetEntryConflicts++
+                                    logger.log("[ENTRY][CONFLICT] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} existedPid=$existingPid incomingPid=$profileId")
+                                }
                             }
                         }
                     } catch (ex: Exception) {

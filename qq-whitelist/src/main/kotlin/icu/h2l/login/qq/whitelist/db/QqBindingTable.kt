@@ -19,26 +19,31 @@
  *
  */
 
-package icu.h2l.login.profile
+package icu.h2l.login.qq.whitelist.db
 
-import icu.h2l.api.db.Profile
-import java.util.*
+import org.jetbrains.exposed.sql.Table
 
-internal object RenameProfileCreatePolicy {
-    fun getBlockedReason(
-        requestedName: String,
-        requestedUuid: UUID,
-        existingByName: Profile?
-    ): String? {
-        if (existingByName == null) {
-            return null
-        }
+/**
+ * QQ 绑定关系表。
+ */
+class QqBindingTable(prefix: String) : Table("${prefix}qq_binding") {
+    // 关系主键
+    val id = uuid("id")
 
-        return if (existingByName.uuid == requestedUuid) {
-            "名称 $requestedName 已映射到现有 Profile: ${existingByName.id}"
-        } else {
-            "名称 $requestedName 已被其他 UUID 占用"
-        }
-    }
+    // QQ 号（一个 QQ 可绑定多个档案）
+    val qqId = long("qq_id").index()
+
+    // 档案 ID（一个档案同时只能绑定一个 QQ）
+    val profileId = uuid("profile_id").uniqueIndex()
+
+    // 绑定时使用的玩家名
+    val playerName = varchar("player_name", 32)
+
+    // 绑定时间戳（毫秒）
+    val boundAt = long("bound_at")
+
+    // 是否还有「下次登录提示」未发送
+    val notifyPending = bool("notify_pending").default(true)
+
+    override val primaryKey = PrimaryKey(id)
 }
-

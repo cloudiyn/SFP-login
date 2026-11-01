@@ -89,7 +89,7 @@ class YggdrasilCredentialService(
 
             val bound = entryDatabaseHelper.createEntry(
                 entryId = result.entryId,
-                name = result.profile.name,
+                name = resolveEntryName(result),
                 uuid = result.profile.id,
                 pid = createdProfile.id
             )
@@ -125,7 +125,7 @@ class YggdrasilCredentialService(
         entryDatabaseHelper.updateEntryName(
             entryId = success.entryId,
             uuid = success.profile.id,
-            newName = success.profile.name
+            newName = resolveEntryName(success)
         )
 
         // 同步外部认证改名到正式 Profile（LS / Mojang 侧改名后，Profile 表也需更新）
@@ -136,6 +136,19 @@ class YggdrasilCredentialService(
         }
 
         return profileId
+    }
+
+    /**
+     * 解析该渠道绑定行的 name 列取值。
+     *
+     * 玩家验证（Yggdrasil）时应以 entry 配置里填写的名字（[EntryConfig.name]）为准，
+     * 而不是远端 Yggdrasil 返回的 profile.name：
+     * 远端名可能被玩家随时改动，用它作绑定行名会导致同一账号出现多行、密码门状态漂移。
+     * 仅当 entry 配置缺失 name 时才回退到远端名。
+     */
+    private fun resolveEntryName(success: YggdrasilAuthResult.Success): String {
+        val configuredName = entryConfigManager.getConfigById(success.entryId)?.name
+        return configuredName?.trim()?.takeUnless { it.isEmpty() } ?: success.profile.name
     }
 
     private fun resolveProfileResolveUuid(result: YggdrasilAuthResult.Success): UUID? {

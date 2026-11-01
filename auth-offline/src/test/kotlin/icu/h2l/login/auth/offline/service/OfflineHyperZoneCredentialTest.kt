@@ -25,7 +25,6 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
-import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.insert
@@ -50,7 +49,7 @@ class OfflineHyperZoneCredentialTest {
             driver = "org.h2.Driver"
         )
         val profileTable = ProfileTable()
-        val offlineAuthTable = OfflineAuthTable("", profileTable)
+        val offlineAuthTable = icu.h2l.api.db.table.ChannelPasswordTable("", profileTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -66,7 +65,9 @@ class OfflineHyperZoneCredentialTest {
                 it[profileTable.uuid] = UUID.fromString("33333333-3333-4333-8333-333333333333")
             }
         }
-        repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
+        repository = OfflineAuthRepository(
+            passwordRepository = icu.h2l.api.password.ChannelPasswordRepository(databaseManager, offlineAuthTable)
+        )
         pendingRegistrations = PendingOfflineRegistrationManager()
         pendingRegistrationId = UUID.fromString("22222222-2222-2222-2222-222222222222")
         pendingRegistrations.put(
@@ -85,50 +86,6 @@ class OfflineHyperZoneCredentialTest {
             pendingRegistrationId = pendingRegistrationId,
             passProfileCreateUuid = true
         )
-    }
-
-    @Test
-    fun `withNewName updates pending registration name used during bind`() {
-        val renamed = credential.withNewName("Alice_Renamed")
-        assertEquals("alice_renamed", pendingRegistrations.get(pendingRegistrationId)?.normalizedName)
-
-        val bindResult = renamed.bind(profileId)
-
-        assertTrue(bindResult)
-        assertEquals(profileId, repository.getByName("alice_renamed")?.profileId)
-    }
-
-    @Test
-    fun `withNewName bind consumes renamed pending registration data`() {
-        val renamed = credential.withNewName("alice_new")
-
-        assertNull(renamed.getBoundProfileId())
-        assertTrue(renamed.bind(profileId))
-        assertNull(pendingRegistrations.get(pendingRegistrationId))
-        assertEquals(profileId, repository.getByName("alice_new")?.profileId)
-    }
-
-    @Test
-    fun `suggested profile create uuid follows current registration name after withNewName`() {
-        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
-
-        val renamed = credential.withNewName("Alice_Renamed")
-
-        assertEquals(
-            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
-            renamed.getSuggestedProfileCreateUuid()
-        )
-        // Original credential remains unchanged
-        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
-    }
-
-    @Test
-    fun `withReUuid returns credential with no suggested uuid`() {
-        assertNotNull(credential.getSuggestedProfileCreateUuid())
-        val reUuided = credential.withReUuid()
-        assertNull(reUuided.getSuggestedProfileCreateUuid())
-        // Original credential remains unchanged
-        assertNotNull(credential.getSuggestedProfileCreateUuid())
     }
 
     @Test

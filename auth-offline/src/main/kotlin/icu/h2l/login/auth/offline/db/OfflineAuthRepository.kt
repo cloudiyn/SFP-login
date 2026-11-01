@@ -21,273 +21,137 @@
 
 package icu.h2l.login.auth.offline.db
 
-import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.log.warn
+import icu.h2l.api.password.ChannelPasswordEntry
+import icu.h2l.api.password.ChannelPasswordRepository
+import icu.h2l.api.password.PasswordChannel
 import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
-import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.update
 import java.util.*
 
+/**
+ * 离线认证数据仓库。
+ *
+ * 自统一密码存储改造后，本仓库不再直接读写 `offline_auth` 表，
+ * 而是把全部读写转发到**统一密码表**（[ChannelPasswordRepository]，channel = offline）。
+ *
+ * 之所以保留本类与既有方法签名，是为了让上层（[icu.h2l.login.auth.offline.service.OfflineAuthService]
+ * 及其凭证、密码门）无需改动；离线渠道的对外语义完全不变。
+ *
+ * 唯一身份键为规范化（小写）后的玩家名，对应统一表的 `channel_key`。
+ */
 class OfflineAuthRepository(
-    private val databaseManager: HyperZoneDatabaseManager,
-    private val table: OfflineAuthTable
+    private val passwordRepository: ChannelPasswordRepository
 ) {
-    fun create(name: String, passwordHash: String, hashFormat: String, profileId: UUID, email: String? = null): Boolean {
+    fun create(
+        name: String,
+        passwordHash: String,
+        hashFormat: String,
+        profileId: UUID,
+        email: String? = null
+    ): Boolean {
         val normalizedName = name.lowercase()
-        return try {
-            databaseManager.executeTransaction {
-                table.insert {
-                    it[this.name] = normalizedName
-                    it[this.passwordHash] = passwordHash
-                    it[this.hashFormat] = hashFormat
-                    it[this.profileId] = profileId
-                    it[this.email] = email?.lowercase()
-                }
-            }
-            true
-        } catch (e: Exception) {
-            warn { "创建离线认证记录失败: ${e.message}" }
-            false
+        val created = passwordRepository.setPassword(
+            channel = PasswordChannel.OFFLINE,
+            channelKey = normalizedName,
+            hash = passwordHash,
+            format = hashFormat,
+            name = normalizedName,
+            profileId = profileId
+        )
+        if (created && email != null) {
+            getByName(normalizedName)?.let { passwordRepository.updateEmail(it.id, email) }
         }
+        return created
     }
 
     fun getByName(name: String): OfflineAuthEntry? {
         val normalizedName = name.lowercase()
-        return databaseManager.executeTransaction {
-            table.selectAll().where { table.name eq normalizedName }
-                .limit(1)
-                .map(::toEntry)
-                .firstOrNull()
-        }
+        return passwordRepository.find(PasswordChannel.OFFLINE, normalizedName)?.toOfflineEntry()
     }
 
     fun getByProfileId(profileId: UUID): OfflineAuthEntry? {
-        return databaseManager.executeTransaction {
-            table.selectAll().where { table.profileId eq profileId }
-                .limit(1)
-                .map(::toEntry)
-                .firstOrNull()
-        }
+        return passwordRepository.findByProfileId(profileId)?.toOfflineEntry()
     }
 
     fun getByEmail(email: String): OfflineAuthEntry? {
-        val normalizedEmail = email.lowercase()
-        return databaseManager.executeTransaction {
-            table.selectAll().where { table.email eq normalizedEmail }
-                .limit(1)
-                .map(::toEntry)
-                .firstOrNull()
-        }
+        return passwordRepository.findByEmail(email)?.toOfflineEntry()
     }
 
     fun updatePassword(profileId: UUID, passwordHash: String, hashFormat: String): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.passwordHash] = passwordHash
-                    it[this.hashFormat] = hashFormat
-                    it[this.recoveryCodeHash] = null
-                    it[this.recoveryCodeExpireAt] = null
-                    it[this.recoveryRequestedAt] = null
-                    it[this.recoveryVerifyTries] = 0
-                    it[this.resetPasswordVerifiedUntil] = null
-                    it[this.loginFailCount] = 0
-                    it[this.loginBlockedUntil] = null
-                    it[this.sessionIp] = null
-                    it[this.sessionIssuedAt] = null
-                    it[this.sessionExpiresAt] = null
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "更新离线认证密码失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.updatePasswordById(entry.id, passwordHash, hashFormat)
     }
 
     fun updateEmail(profileId: UUID, email: String?): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.email] = email?.lowercase()
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "更新离线认证邮箱失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.updateEmail(entry.id, email)
     }
 
     fun updateLoginProtection(profileId: UUID, failCount: Int, blockedUntil: Long?): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.loginFailCount] = failCount
-                    it[this.loginBlockedUntil] = blockedUntil
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "更新离线认证登录保护状态失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.updateLoginProtection(entry.id, failCount, blockedUntil)
     }
 
-    fun resetLoginProtection(profileId: UUID): Boolean {
-        return updateLoginProtection(profileId, 0, null)
-    }
-
+    fun resetLoginProtection(profileId: UUID): Boolean = updateLoginProtection(profileId, 0, null)
 
     fun startRecovery(profileId: UUID, recoveryCodeHash: String, expireAt: Long, requestedAt: Long): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.recoveryCodeHash] = recoveryCodeHash
-                    it[this.recoveryCodeExpireAt] = expireAt
-                    it[this.recoveryRequestedAt] = requestedAt
-                    it[this.recoveryVerifyTries] = 0
-                    it[this.resetPasswordVerifiedUntil] = null
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "写入离线认证恢复码失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.startRecovery(entry.id, recoveryCodeHash, expireAt, requestedAt)
     }
 
     fun incrementRecoveryVerifyTries(profileId: UUID): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                val current = table.selectAll().where { table.profileId eq profileId }
-                    .limit(1)
-                    .map { it[table.recoveryVerifyTries] }
-                    .firstOrNull()
-                    ?: return@executeTransaction false
-
-                table.update({ table.profileId eq profileId }) {
-                    it[this.recoveryVerifyTries] = current + 1
-                } > 0
-            }
-        } catch (e: Exception) {
-            warn { "更新离线认证恢复码尝试次数失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.incrementRecoveryVerifyTries(entry.id)
     }
 
     fun markRecoveryVerified(profileId: UUID, verifiedUntil: Long): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.resetPasswordVerifiedUntil] = verifiedUntil
-                    it[this.recoveryCodeHash] = null
-                    it[this.recoveryCodeExpireAt] = null
-                    it[this.recoveryRequestedAt] = null
-                    it[this.recoveryVerifyTries] = 0
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "标记离线认证恢复码已验证失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.markRecoveryVerified(entry.id, verifiedUntil)
     }
 
     fun clearRecoveryState(profileId: UUID): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.recoveryCodeHash] = null
-                    it[this.recoveryCodeExpireAt] = null
-                    it[this.recoveryRequestedAt] = null
-                    it[this.recoveryVerifyTries] = 0
-                    it[this.resetPasswordVerifiedUntil] = null
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "清理离线认证恢复状态失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.clearRecoveryState(entry.id)
     }
 
     fun issueSession(profileId: UUID, sessionIp: String?, issuedAt: Long, expiresAt: Long): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.sessionIp] = sessionIp
-                    it[this.sessionIssuedAt] = issuedAt
-                    it[this.sessionExpiresAt] = expiresAt
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "签发离线认证会话失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.issueSession(entry.id, sessionIp, issuedAt, expiresAt)
     }
 
     fun clearSession(profileId: UUID): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.sessionIp] = null
-                    it[this.sessionIssuedAt] = null
-                    it[this.sessionExpiresAt] = null
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "清理离线认证会话失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.clearSession(entry.id)
     }
 
     fun updateTotpSecret(profileId: UUID, totpSecret: String?): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
-                    it[this.totpSecret] = totpSecret
-                    if (totpSecret == null) {
-                        it[this.sessionIp] = null
-                        it[this.sessionIssuedAt] = null
-                        it[this.sessionExpiresAt] = null
-                    }
-                }
-            } > 0
-        } catch (e: Exception) {
-            warn { "更新离线认证 TOTP 状态失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.updateTotpSecret(entry.id, totpSecret)
     }
 
     fun deleteByProfileId(profileId: UUID): Boolean {
-        return try {
-            databaseManager.executeTransaction {
-                table.deleteWhere { table.profileId eq profileId }
-            } > 0
-        } catch (e: Exception) {
-            warn { "删除离线认证记录失败: ${e.message}" }
-            false
-        }
+        val entry = getByProfileId(profileId) ?: return false
+        return passwordRepository.deleteById(entry.id)
     }
 
-    private fun toEntry(row: org.jetbrains.exposed.sql.ResultRow): OfflineAuthEntry {
+    private fun ChannelPasswordEntry.toOfflineEntry(): OfflineAuthEntry {
         return OfflineAuthEntry(
-            id = row[table.id],
-            name = row[table.name],
-            passwordHash = row[table.passwordHash],
-            hashFormat = row[table.hashFormat],
-            profileId = row[table.profileId],
-            email = row[table.email],
-            recoveryCodeHash = row[table.recoveryCodeHash],
-            recoveryCodeExpireAt = row[table.recoveryCodeExpireAt],
-            recoveryRequestedAt = row[table.recoveryRequestedAt],
-            recoveryVerifyTries = row[table.recoveryVerifyTries],
-            resetPasswordVerifiedUntil = row[table.resetPasswordVerifiedUntil],
-            loginFailCount = row[table.loginFailCount],
-            loginBlockedUntil = row[table.loginBlockedUntil],
-            sessionIp = row[table.sessionIp],
-            sessionIssuedAt = row[table.sessionIssuedAt],
-            sessionExpiresAt = row[table.sessionExpiresAt],
-            totpSecret = row[table.totpSecret]
+            id = id,
+            name = name,
+            passwordHash = passwordHash.orEmpty(),
+            hashFormat = hashFormat.orEmpty(),
+            profileId = profileId ?: UUID(0L, 0L),
+            email = email,
+            recoveryCodeHash = recoveryCodeHash,
+            recoveryCodeExpireAt = recoveryCodeExpireAt,
+            recoveryRequestedAt = recoveryRequestedAt,
+            recoveryVerifyTries = recoveryVerifyTries,
+            resetPasswordVerifiedUntil = resetPasswordVerifiedUntil,
+            loginFailCount = loginFailCount,
+            loginBlockedUntil = loginBlockedUntil,
+            sessionIp = sessionIp,
+            sessionIssuedAt = sessionIssuedAt,
+            sessionExpiresAt = sessionExpiresAt,
+            totpSecret = totpSecret
         )
     }
 }

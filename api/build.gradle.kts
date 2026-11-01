@@ -43,6 +43,9 @@ dependencies {
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
     testRuntimeOnly(libs.junitPlatformLauncher)
+    // 迁移器测试需要真实的事务型数据库：exposed-jdbc + sqlite（覆盖旧版 SQLite 升级路径）
+    testImplementation(libs.exposedJdbc)
+    testImplementation(libs.sqliteJdbc)
 }
 
 tasks.test {

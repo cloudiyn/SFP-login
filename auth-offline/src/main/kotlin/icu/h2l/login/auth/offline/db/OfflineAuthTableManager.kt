@@ -26,29 +26,48 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
+import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
+import icu.h2l.api.password.ChannelPasswordMigrator
+import icu.h2l.api.password.ChannelPasswordRepository
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
-import org.jetbrains.exposed.sql.SchemaUtils
 
+/**
+ * 离线渠道旧表（`offline_auth`）的生命周期管理。
+ *
+ * 自统一密码存储改造后，离线密码已全部迁入统一密码表，`offline_auth` 不再承载业务数据。
+ * 因此本管理器**不再创建**该表，而是：
+ * - 首次启动时把老库 `offline_auth` 的数据迁移到统一密码表，然后删除旧表；
+ * - 之后启动直接跳过（表已不存在）。
+ */
 class OfflineAuthTableManager(
     private val databaseManager: HyperZoneDatabaseManager,
     tablePrefix: String,
-    profileTable: ProfileTable
+    profileTable: ProfileTable,
+    private val passwordRepository: ChannelPasswordRepository,
 ) {
     val offlineAuthTable = OfflineAuthTable(tablePrefix, profileTable)
 
-    @Suppress("DEPRECATION")
+    private val migrator = ChannelPasswordMigrator(databaseManager, passwordRepository)
+
+    /**
+     * 迁移旧 `offline_auth` 数据到统一密码表，并删除旧表（幂等）。
+     *
+     * 这是本模块启动阶段最早拿到统一密码表的时机，因此顺便为**旧版 SQLite 的统一密码表**
+     * 补建唯一索引（Exposed 不会为已存在的表补索引）。
+     */
     fun createTable() {
-        databaseManager.executeTransaction {
-            SchemaUtils.createMissingTablesAndColumns(offlineAuthTable, withLogs = false)
-        }
+        runCatching {
+            migrator.ensurePasswordTableIndexes(passwordRepository.passwordTable.tableName)
+            val migrated = migrator.migrateOfflineTable(offlineAuthTable.tableName)
+            if (migrated > 0) {
+                info { "已迁移 $migrated 条离线密码记录到统一密码表" }
+            }
+        }.onFailure { warn { "迁移 offline_auth 失败：${it.message}" } }
     }
 
     fun dropTable() {
-        databaseManager.executeTransaction {
-            SchemaUtils.drop(offlineAuthTable)
-            warn { "已删除表: ${offlineAuthTable.tableName}" }
-        }
+        migrator.dropTable(offlineAuthTable.tableName)
     }
 
     @Subscribe

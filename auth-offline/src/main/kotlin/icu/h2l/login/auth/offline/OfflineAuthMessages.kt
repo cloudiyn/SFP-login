@@ -72,7 +72,7 @@ object OfflineAuthMessages {
     val REGISTER_BIND_PROFILE_MISSING: Component
         get() = render("register.bind-profile-missing", "${PREFIX}§c未找到已关联档案，暂时无法设置离线密码")
     val REGISTER_BIND_PENDING: Component
-        get() = render("register.bind-pending", "§a注册成功，但当前名称无法直接分配档案。若要继续新建档案，请使用 /rename <新注册名>；若要绑定已有档案，请使用 /bindcode use <绑定码>")
+        get() = render("register.bind-pending", "§a注册成功，但当前名称无法直接分配档案。若当前是用户名冲突，请修改游戏用户名后再试；若要绑定已有档案，请使用 /bindcode use <绑定码>；若没有可用绑定码，请联系管理员")
     val REGISTER_BIND_PENDING_ERROR: Component
         get() = render("register.bind-pending-error", "§c注册成功，但等待绑定时出现错误")
 
@@ -199,7 +199,7 @@ object OfflineAuthMessages {
     val TOTP_LOGIN_HINT: Component
         get() = render("totp.login-hint", "${PREFIX}§7已启用 TOTP，请使用 /login <密码> <验证码> 登录；若要指定账号，请使用 /login as <用户名> <密码> <验证码>")
     val PENDING_BIND_PROMPT: Component
-        get() = render("prompt.pending-bind", "§8[§6玩家系统§8] §7当前离线注册信息已暂存；若名称冲突，可使用 /rename <新注册名> 重试建档；若要绑定已有档案，请使用 /bindcode use <绑定码>")
+        get() = render("prompt.pending-bind", "§8[§6玩家系统§8] §7当前离线注册信息已暂存；若要绑定已有档案，请使用 /bindcode use <绑定码>，若没有可用绑定码请联系管理员")
     val LOGIN_OTHER_USERNAME_PROMPT: Component
         get() = render("prompt.login-other-username", "§8[§6玩家系统§8] §7若当前连接名不是你的离线账号名，可使用 /login as <用户名> <密码> [验证码]")
     val CHANGE_PASSWORD_PROMPT: Component
@@ -322,7 +322,9 @@ object OfflineAuthMessages {
 
     private fun render(key: String, fallback: String, vararg placeholders: HyperZoneMessagePlaceholder): Component {
         val service = HyperZoneMessageServiceProvider.getOrNull()
-        return if (service != null) {
+        // 消息服务在键缺失时返回 "Missing message" 占位文本而不是 null，必须先用 hasKey 判断，
+        // 缺键时回退到代码内置文案，兼容旧版本升级后落盘消息文件尚未补齐新键的数据目录。
+        return if (service != null && service.hasKey("$NAMESPACE.$key")) {
             service.render("$NAMESPACE.$key", *placeholders)
         } else {
             Component.text(applyFallbackPlaceholders(fallback, placeholders))

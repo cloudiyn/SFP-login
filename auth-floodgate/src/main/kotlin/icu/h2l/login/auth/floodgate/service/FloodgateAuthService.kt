@@ -61,7 +61,9 @@ class FloodgateAuthService(
         val credential: FloodgateHyperZoneCredential? = null,
         val profileIdHint: UUID? = null,
         val disconnectOnFailure: Boolean = false,
-        val userMessage: Component? = null
+        val userMessage: Component? = null,
+        /** 认证通过时对应的 Bedrock XUID，供渠道密码门定位绑定记录。 */
+        val xuid: Long? = null
     )
 
     /**
@@ -138,7 +140,8 @@ class FloodgateAuthService(
                 handled = true,
                 passed = true,
                 credential = credential,
-                profileIdHint = knownProfileId
+                profileIdHint = knownProfileId,
+                xuid = session.xuid
             )
         } catch (throwable: Throwable) {
             logger.warning("Floodgate 玩家 $playerName 完成认证失败: ${throwable.message}")

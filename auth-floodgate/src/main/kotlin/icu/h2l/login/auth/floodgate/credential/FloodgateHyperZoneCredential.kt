@@ -29,7 +29,8 @@ class FloodgateHyperZoneCredential(
     private val repository: FloodgateAuthRepository,
     private val trustedName: String,
     private val trustedUuid: UUID,
-    private val xuid: Long,
+    /** Floodgate 侧可信的 Bedrock XUID，用于定位本渠道绑定记录。 */
+    val xuid: Long,
     private val suggestedProfileCreateUuid: UUID?,
     private val knownProfileId: UUID? = null
 ) : HyperZoneCredential {
@@ -60,27 +61,6 @@ class FloodgateHyperZoneCredential(
 
     fun matches(uuid: UUID): Boolean {
         return trustedUuid == uuid
-    }
-
-    /**
-     * 创建一个新显示名称的凭证副本，用于 Rename 流程。
-     *
-     * Floodgate UUID 由 Mojang 分配，不受 rename 影响；
-     * 仅更新显示给 Profile 服务的注册名。
-     */
-    fun withNewName(newName: String): FloodgateHyperZoneCredential {
-        return FloodgateHyperZoneCredential(
-            repository = repository,
-            trustedName = newName,
-            trustedUuid = trustedUuid,
-            xuid = xuid,
-            suggestedProfileCreateUuid = suggestedProfileCreateUuid,
-            knownProfileId = knownProfileId
-        )
-    }
-
-    override fun withRegistrationName(newRegistrationName: String): FloodgateHyperZoneCredential {
-        return withNewName(newRegistrationName)
     }
 
     companion object {

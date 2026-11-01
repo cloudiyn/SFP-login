@@ -23,7 +23,8 @@ package icu.h2l.login.merge.service
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
-import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
+import icu.h2l.api.password.ChannelPasswordRepository
+import icu.h2l.api.password.PasswordChannel
 import icu.h2l.login.merge.config.MergeAmConfig
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.insert
@@ -37,7 +38,10 @@ import java.util.*
 class AmDataMigrator(
     private val dataDirectory: Path,
     private val databaseManager: HyperZoneDatabaseManager,
-    private val config: MergeAmConfig
+    private val config: MergeAmConfig,
+    /** 统一渠道密码表仓库：AuthMe 账号直接写入离线渠道。 */
+    private val passwordRepository: ChannelPasswordRepository =
+        icu.h2l.api.password.ChannelPasswordProvider.get(),
 ) {
     data class Report(
         var sourceRows: Int = 0,
@@ -74,11 +78,9 @@ class AmDataMigrator(
             logger.log("读取完成: authme=${sourceRows.size}")
 
             val profileTable = ProfileTable(databaseManager.tablePrefix)
-            val offlineAuthTable = OfflineAuthTable(databaseManager.tablePrefix, profileTable)
 
             databaseManager.executeTransaction {
                 SchemaUtils.create(profileTable)
-                SchemaUtils.create(offlineAuthTable)
 
                 for (source in sourceRows) {
                     val username = source.username.trim()
@@ -165,67 +167,53 @@ class AmDataMigrator(
                     }
 
                     try {
-                        val existingByProfileId = offlineAuthTable.selectAll()
-                            .where { offlineAuthTable.profileId eq resolvedProfileId }
-                            .limit(1)
-                            .firstOrNull()
+                        // 统一密码存储：AuthMe 账号直接落到统一密码表的 offline 渠道（按玩家名索引）
+                        val existing = passwordRepository.find(PasswordChannel.OFFLINE, offlineAuthName)
 
-                        if (existingByProfileId != null) {
-                            val same = existingByProfileId[offlineAuthTable.name] == offlineAuthName &&
-                                existingByProfileId[offlineAuthTable.passwordHash] == passwordMeta.passwordHash &&
-                                existingByProfileId[offlineAuthTable.hashFormat].equals(passwordMeta.hashFormat, ignoreCase = true)
+                        if (existing != null) {
+                            val sameProfile = existing.profileId == resolvedProfileId
+                            val sameSecret = existing.passwordHash == passwordMeta.passwordHash &&
+                                existing.hashFormat.equals(passwordMeta.hashFormat, ignoreCase = true)
 
-                            if (same) {
+                            if (sameProfile && sameSecret) {
                                 report.targetOfflineAuthMatched++
                                 logger.log("[AUTH][MATCHED] name=$offlineAuthName profileId=$resolvedProfileId")
+                            } else if (!sameProfile) {
+                                // 同名账号已绑定到其他档案：不覆盖，记为冲突
+                                report.targetOfflineAuthConflicts++
+                                logger.log(
+                                    "[AUTH][CONFLICT] name=$offlineAuthName existedPid=${existing.profileId} incomingPid=$resolvedProfileId"
+                                )
                             } else {
-                                offlineAuthTable.update({ offlineAuthTable.profileId eq resolvedProfileId }) {
-                                    it[name] = offlineAuthName
-                                    it[passwordHash] = passwordMeta.passwordHash
-                                    it[hashFormat] = passwordMeta.hashFormat
-                                }
+                                passwordRepository.setPassword(
+                                    channel = PasswordChannel.OFFLINE,
+                                    channelKey = offlineAuthName,
+                                    hash = passwordMeta.passwordHash,
+                                    format = passwordMeta.hashFormat,
+                                    name = offlineAuthName,
+                                    profileId = resolvedProfileId,
+                                )
                                 report.targetOfflineAuthUpdated++
                                 logger.log("[AUTH][UPDATED] name=$offlineAuthName profileId=$resolvedProfileId")
                             }
                             continue
                         }
 
-                        val existingByName = offlineAuthTable.selectAll()
-                            .where { offlineAuthTable.name eq offlineAuthName }
-                            .limit(1)
-                            .firstOrNull()
-
-                        if (existingByName != null) {
-                            val existedPid = existingByName[offlineAuthTable.profileId]
-                            if (existedPid == resolvedProfileId) {
-                                val same = existingByName[offlineAuthTable.passwordHash] == passwordMeta.passwordHash &&
-                                    existingByName[offlineAuthTable.hashFormat].equals(passwordMeta.hashFormat, ignoreCase = true)
-                                if (same) {
-                                    report.targetOfflineAuthMatched++
-                                    logger.log("[AUTH][MATCHED] name=$offlineAuthName profileId=$resolvedProfileId")
-                                } else {
-                                    offlineAuthTable.update({ offlineAuthTable.profileId eq resolvedProfileId }) {
-                                        it[passwordHash] = passwordMeta.passwordHash
-                                        it[hashFormat] = passwordMeta.hashFormat
-                                    }
-                                    report.targetOfflineAuthUpdated++
-                                    logger.log("[AUTH][UPDATED] name=$offlineAuthName profileId=$resolvedProfileId")
-                                }
-                            } else {
-                                report.targetOfflineAuthConflicts++
-                                logger.log("[AUTH][CONFLICT] name=$offlineAuthName existedPid=$existedPid incomingPid=$resolvedProfileId")
-                            }
-                            continue
+                        val created = passwordRepository.setPassword(
+                            channel = PasswordChannel.OFFLINE,
+                            channelKey = offlineAuthName,
+                            hash = passwordMeta.passwordHash,
+                            format = passwordMeta.hashFormat,
+                            name = offlineAuthName,
+                            profileId = resolvedProfileId,
+                        )
+                        if (created) {
+                            report.targetOfflineAuthCreated++
+                            logger.log("[AUTH][CREATED] name=$offlineAuthName profileId=$resolvedProfileId format=${passwordMeta.hashFormat}")
+                        } else {
+                            report.targetOfflineAuthFailures++
+                            logger.log("[AUTH][FAILED] name=$profileName profileId=$resolvedProfileId reason=write returned false")
                         }
-
-                        offlineAuthTable.insert {
-                            it[name] = offlineAuthName
-                            it[passwordHash] = passwordMeta.passwordHash
-                            it[hashFormat] = passwordMeta.hashFormat
-                            it[profileId] = resolvedProfileId
-                        }
-                        report.targetOfflineAuthCreated++
-                        logger.log("[AUTH][CREATED] name=$offlineAuthName profileId=$resolvedProfileId format=${passwordMeta.hashFormat}")
                     } catch (ex: Exception) {
                         report.targetOfflineAuthFailures++
                         logger.log("[AUTH][FAILED] name=$profileName profileId=$resolvedProfileId reason=${ex.message}")
