@@ -23,7 +23,7 @@ package cn.starfallplain.sfplogin.vServer.outpre.session
 
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
-import cn.starfallplain.sfplogin.vServer.outpre.OutPreState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaSessionState
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreVServerAuth
 import cn.starfallplain.sfplogin.vServer.outpre.handler.OutPreAuthSessionHandler
 
@@ -36,7 +36,7 @@ import cn.starfallplain.sfplogin.vServer.outpre.handler.OutPreAuthSessionHandler
 internal sealed interface OutPreInitialJoinSession {
     val player: ConnectedPlayer
     val hyperPlayer: VelocityHyperZonePlayer
-    val state: OutPreState
+    val state: WaitingAreaSessionState
 
     fun destroy()
 

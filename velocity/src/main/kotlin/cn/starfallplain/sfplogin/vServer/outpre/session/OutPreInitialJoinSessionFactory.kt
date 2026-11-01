@@ -23,7 +23,8 @@ package cn.starfallplain.sfplogin.vServer.outpre.session
 
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
-import cn.starfallplain.sfplogin.vServer.outpre.OutPreState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaSessionState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaGate
 import cn.starfallplain.sfplogin.vServer.outpre.handler.OutPreAuthSessionHandler
 
 /**
@@ -35,15 +36,15 @@ internal object OutPreInitialJoinSessionFactory {
         player: ConnectedPlayer,
         hyperPlayer: VelocityHyperZonePlayer,
         handler: OutPreAuthSessionHandler,
-        authTargetLabel: String,
+        authTarget: String,
     ): OutPreInitialJoinSession {
         return if (struck) {
             StruckInitialJoinSession(
                 player = player,
                 hyperPlayer = hyperPlayer,
                 handler = handler,
-                state = OutPreState(
-                    authTargetLabel = authTargetLabel,
+                state = WaitingAreaSessionState(
+                    authTarget = authTarget,
                     initialFlowPending = true,
                     inAuthHold = false,
                     hasConnectedToAuthServerOnce = true,
@@ -54,8 +55,8 @@ internal object OutPreInitialJoinSessionFactory {
                 player = player,
                 hyperPlayer = hyperPlayer,
                 handler = handler,
-                state = OutPreState(
-                    authTargetLabel = authTargetLabel,
+                state = WaitingAreaSessionState(
+                    authTarget = authTarget,
                     initialFlowPending = true,
                     inAuthHold = true,
                     hasConnectedToAuthServerOnce = false,
@@ -68,9 +69,7 @@ internal object OutPreInitialJoinSessionFactory {
     fun waitingAreaFallbackFrom(
         session: StruckInitialJoinSession
     ): BridgeWaitingAreaJoinSession {
-        session.state.inAuthHold = true
-        session.state.hasConnectedToAuthServerOnce = false
-        session.state.verifiedExitPending = false
+        WaitingAreaGate.resetToBridgeHold(session.state)
         return BridgeWaitingAreaJoinSession(
             player = session.player,
             hyperPlayer = session.hyperPlayer,

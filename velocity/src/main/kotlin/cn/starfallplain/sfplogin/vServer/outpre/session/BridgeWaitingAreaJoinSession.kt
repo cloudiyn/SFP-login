@@ -34,7 +34,8 @@ import cn.starfallplain.sfplogin.message.MessageKeys
 import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
 import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreBackendBridge
-import cn.starfallplain.sfplogin.vServer.outpre.OutPreState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaSessionState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaGate
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreVServerAuth
 import cn.starfallplain.sfplogin.vServer.outpre.handler.OutPreAuthSessionHandler
 import cn.starfallplain.sfplogin.vServer.outpre.handler.bridge.OutPreClientBridgeSessionHandler
@@ -52,7 +53,7 @@ internal class BridgeWaitingAreaJoinSession(
     override val player: ConnectedPlayer,
     override val hyperPlayer: VelocityHyperZonePlayer,
     internal val handler: OutPreAuthSessionHandler,
-    override val state: OutPreState,
+    override val state: WaitingAreaSessionState,
     private val shouldPublishAuthStartAfterJoin: Boolean,
 ) : OutPreInitialJoinSession, OutPreBackendBridge.Callback {
 
@@ -141,7 +142,7 @@ internal class BridgeWaitingAreaJoinSession(
 
     override fun onVerified(owner: OutPreVServerAuth) {
         if (!state.hasConnectedToAuthServerOnce) {
-            state.verifiedExitPending = true
+            WaitingAreaGate.deferVerifiedExit(state)
             owner.trace(
                 "outpre.onVerified deferred-until-auth-join channel=${player.getChannel().id()} player=${player.username} ${
                     owner.describeState(state)
@@ -153,7 +154,7 @@ internal class BridgeWaitingAreaJoinSession(
     }
 
     override fun onAuthServerJoined(owner: OutPreVServerAuth) {
-        state.hasConnectedToAuthServerOnce = true
+        WaitingAreaGate.markEnteredAuthServer(state)
         owner.trace(
             "outpre.onAuthServerJoined channel=${player.getChannel().id()} player=${player.username} attachedProfile=${hyperPlayer.hasAttachedProfile()} ${
                 owner.describeState(state)
@@ -165,8 +166,7 @@ internal class BridgeWaitingAreaJoinSession(
         }
         owner.publishWaitingAreaJoinEvent(player, hyperPlayer)
 
-        if (state.verifiedExitPending) {
-            state.verifiedExitPending = false
+        if (WaitingAreaGate.consumeDeferredVerifiedExit(state)) {
             owner.trace(
                 "outpre.onAuthServerJoined consume-verifiedExitPending channel=${player.getChannel().id()} player=${player.username} ${
                     owner.describeState(state)

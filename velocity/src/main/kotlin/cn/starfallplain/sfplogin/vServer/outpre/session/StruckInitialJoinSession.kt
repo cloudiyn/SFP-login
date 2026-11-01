@@ -25,7 +25,7 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import cn.starfallplain.sfplogin.api.player.getChannel
 import cn.starfallplain.sfplogin.manager.LoginManager
 import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
-import cn.starfallplain.sfplogin.vServer.outpre.OutPreState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaSessionState
 import cn.starfallplain.sfplogin.vServer.outpre.OutPreVServerAuth
 import cn.starfallplain.sfplogin.vServer.outpre.handler.OutPreAuthSessionHandler
 import java.util.concurrent.atomic.AtomicBoolean
@@ -39,7 +39,7 @@ internal class StruckInitialJoinSession(
     override val player: ConnectedPlayer,
     override val hyperPlayer: VelocityHyperZonePlayer,
     internal val handler: OutPreAuthSessionHandler,
-    override val state: OutPreState,
+    override val state: WaitingAreaSessionState,
 ) : OutPreInitialJoinSession {
     private val fallbackStarted = AtomicBoolean(false)
 

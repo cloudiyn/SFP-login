@@ -57,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
 import cn.starfallplain.sfplogin.sfpLoginMain
 import cn.starfallplain.sfplogin.coreConfig
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaSessionState
+import cn.starfallplain.sfplogin.vServer.waiting.WaitingAreaGate
 
 /**
  * outpre = 在正常 Velocity 注册前，先把客户端连接桥接到真实认证服；
@@ -67,7 +69,7 @@ class OutPreVServerAuth(
 ) : HyperZoneVServerAdapter {
     private val logger
         get() = sfpLoginMain().logger
-    private val states = ConcurrentHashMap<Channel, OutPreState>()
+    private val states = ConcurrentHashMap<Channel, WaitingAreaSessionState>()
     private val initialJoinSessions = ConcurrentHashMap<Channel, OutPreInitialJoinSession>()
 
     private fun clearInitialSession(channel: Channel) {
@@ -75,7 +77,7 @@ class OutPreVServerAuth(
         states.remove(channel)
     }
 
-    internal fun clearInitialSession(channel: Channel, state: OutPreState): Boolean {
+    internal fun clearInitialSession(channel: Channel, state: WaitingAreaSessionState): Boolean {
         initialJoinSessions.remove(channel)?.destroy()
         return states.remove(channel, state)
     }
@@ -115,12 +117,7 @@ class OutPreVServerAuth(
         debug(HyperZoneDebugType.OUTPRE_TRACE, message)
     }
 
-    internal fun describeState(state: OutPreState?): String {
-        if (state == null) {
-            return "state=null"
-        }
-        return "state(inAuthHold=${state.inAuthHold}, hasConnectedToAuthServerOnce=${state.hasConnectedToAuthServerOnce}, verifiedExitPending=${state.verifiedExitPending}, initialFlowPending=${state.initialFlowPending}, returnTarget=${state.returnTargetServerName}, authTarget=${state.authTargetLabel})"
-    }
+    internal fun describeState(state: WaitingAreaSessionState?): String = state?.describe() ?: "state=null"
 
     override fun isEnabled(): Boolean {
         return configuredAuthAddress() != null
@@ -177,7 +174,7 @@ class OutPreVServerAuth(
             player = player,
             hyperPlayer = hyperPlayer,
             handler = handler,
-            authTargetLabel = configuredAuthTargetLabel(),
+            authTarget = configuredAuthTargetLabel(),
         )
         val state = session.state
         states[player.getChannel()] = state
@@ -203,8 +200,8 @@ class OutPreVServerAuth(
         }
 
         if (hyperPlayer.hasAttachedProfile()) {
-            state.inAuthHold = false
-            state.verifiedExitPending = true
+            WaitingAreaGate.markVerified(state)
+            WaitingAreaGate.deferVerifiedExit(state)
             trace(
                 "beginInitialJoin already-ready-after-authStart channel=${
                     player.getChannel().id()
@@ -222,11 +219,11 @@ class OutPreVServerAuth(
         // 初始 outpre 会话已完成职责，清理映射并标记 initialFlowPending 结束。
         val session = initialJoinSessions.remove(player.getChannel()) ?: return
         session.destroy()
-        session.state.initialFlowPending = false
+        WaitingAreaGate.markInitialFlowCompleted(session.state)
     }
 
     fun resolveReleaseTarget(player: ConnectedPlayer, preferredTargetServerName: String?): RegisteredServer? {
-        val authTargetLabel = states[player.getChannel()]?.authTargetLabel ?: configuredAuthTargetLabel()
+        val authTargetLabel = states[player.getChannel()]?.authTarget ?: configuredAuthTargetLabel()
         val resolvedTargetName = preferredTargetServerName
             ?.takeUnless { it.isBlank() || it.equals(authTargetLabel, ignoreCase = true) }
             ?.takeIf { server.getServer(it).isPresent }
@@ -259,12 +256,8 @@ class OutPreVServerAuth(
     }
 
     override fun isPlayerInWaitingArea(player: Player): Boolean {
-        val state = states[player.getChannel()]
-        return state != null && (
-                state.inAuthHold ||
-                        !state.hasConnectedToAuthServerOnce ||
-                        state.initialFlowPending
-                )
+        val state = states[player.getChannel()] ?: return false
+        return WaitingAreaGate.isHolding(state)
     }
 
     override fun supportsProxyFallbackCommands(): Boolean {
@@ -296,7 +289,7 @@ class OutPreVServerAuth(
                 )
             }"
         )
-        state.inAuthHold = false
+        WaitingAreaGate.markVerified(state)
 
         if (state.initialFlowPending && session != null) {
             session.onVerified(this)
@@ -304,7 +297,7 @@ class OutPreVServerAuth(
         }
 
         if (!state.hasConnectedToAuthServerOnce) {
-            state.verifiedExitPending = true
+            WaitingAreaGate.deferVerifiedExit(state)
             trace(
                 "outpre.onVerified deferred-no-auth-join channel=${
                     player.getChannel().id()
@@ -337,9 +330,7 @@ class OutPreVServerAuth(
         if (!needsAuthServerProtection(state)) return
 
         val requestedServerName = event.originalServer.serverInfo.name
-        if (rememberRequestedServerDuringAuth()) {
-            state.returnTargetServerName = requestedServerName
-        }
+        WaitingAreaGate.rememberRequestedServer(state, requestedServerName, rememberRequestedServerDuringAuth())
 
         player.sendMessage(messages.render(player, MessageKeys.BackendAuth.MUST_VERIFY_BEFORE_TRANSFER))
         event.result = ServerPreConnectEvent.ServerResult.denied()
@@ -349,7 +340,7 @@ class OutPreVServerAuth(
     fun onServerConnected(event: ServerPostConnectEvent) {
         val player = event.player
         val state = states[player.getChannel()] ?: return
-        if (!state.inAuthHold && !state.initialFlowPending) {
+        if (WaitingAreaGate.hasLeftHoldingPhase(state)) {
             clearInitialSession(player.getChannel(), state)
         }
     }
@@ -375,7 +366,7 @@ class OutPreVServerAuth(
     internal fun publishAuthStartEvent(
         player: Player,
         hyperPlayer: VelocityHyperZonePlayer,
-        state: OutPreState,
+        state: WaitingAreaSessionState,
         source: String
     ): CompletableFuture<LoginManager.Result> {
         val dispatchFuture = sfpLoginMain().loginManager.dispatch(
@@ -384,9 +375,9 @@ class OutPreVServerAuth(
             metadata = mapOf(
                 "source" to source,
                 "mode" to "outpre",
-                "authTarget" to state.authTargetLabel,
+                "authTarget" to state.authTarget,
                 "initialFlowPending" to state.initialFlowPending.toString(),
-                "struck" to (!state.inAuthHold && state.hasConnectedToAuthServerOnce).toString(),
+                "struck" to WaitingAreaGate.isStruck(state).toString(),
             )
         )
         dispatchFuture.whenCompleteAsync({ result, throwable ->
@@ -415,19 +406,19 @@ class OutPreVServerAuth(
     internal fun continueVerifiedInitialJoin(
         player: Player,
         handler: OutPreAuthSessionHandler,
-        state: OutPreState
+        state: WaitingAreaSessionState
     ) {
         trace(
             "outpre.onVerified completing-initial-flow channel=${
                 player.getChannel().id()
-            } player=${player.username} target=${state.returnTargetServerName} ${
+            } player=${player.username} target=${state.returnTarget} ${
                 describeState(
                     state
                 )
             }"
         )
         if (state.initialFlowPending) {
-            handler.completeAfterVerification(state.returnTargetServerName)
+            handler.completeAfterVerification(state.returnTarget)
         } else {
             connectVerifiedPlayerToResolvedTarget(player, state)
         }
@@ -435,16 +426,15 @@ class OutPreVServerAuth(
 
     // ---- 目标服转发 ----
 
-    private fun connectVerifiedPlayerToResolvedTarget(player: Player, state: OutPreState): Boolean {
+    private fun connectVerifiedPlayerToResolvedTarget(player: Player, state: WaitingAreaSessionState): Boolean {
         clearInitialSession(player.getChannel(), state)
         return connectPlayerToServer(player, server, resolveTargetServerName(player, state), ConnectMessageKeys.VERIFIED)
     }
 
     // ---- 状态 / 配置辅助 ----
 
-    private fun needsAuthServerProtection(state: OutPreState): Boolean {
-        return state.inAuthHold || !state.hasConnectedToAuthServerOnce || state.initialFlowPending
-    }
+    private fun needsAuthServerProtection(state: WaitingAreaSessionState): Boolean =
+        WaitingAreaGate.isHolding(state)
 
     private fun getHyperPlayer(player: Player): VelocityHyperZonePlayer? {
         return HyperZonePlayerManager.getByPlayerOrNull(player)
@@ -462,10 +452,9 @@ class OutPreVServerAuth(
         return coreConfig().vServer.rememberRequestedServerDuringAuth
     }
 
-    private fun resolveTargetServerName(player: Player, state: OutPreState): String? =
-        state.returnTargetServerName
-            ?.takeUnless { it.isBlank() || it.equals(state.authTargetLabel, ignoreCase = true) }
-            ?: resolveFallbackTargetServerName(player, state.authTargetLabel)
+    private fun resolveTargetServerName(player: Player, state: WaitingAreaSessionState): String? =
+        WaitingAreaGate.resolveReturnTarget(state)
+            ?: resolveFallbackTargetServerName(player, state.authTarget)
 
     private fun resolveFallbackTargetServerName(player: Player, authServerName: String): String? {
         return resolveVelocityInitialTargetServerName(server, player, authServerName)

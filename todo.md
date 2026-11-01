@@ -135,7 +135,7 @@
 ## A 组：生命周期 / 等待区状态 / 连接交接
 
 - [x] **A1 HyperZoneContext + 可关闭生命周期**（`HyperZoneLoginMain.kt:93-139`）：`start()` 返回已注册资源，`close()` 逆序释放；`onDisable` 全量关闭；删除 `companion` 静态 `instance/coreConfig/startConfig`
-- [ ] **A2 统一等待区状态**（`OutPreState` vs `BackendHoldState` 合并）：`WaitingAreaSessionState`（authTarget、returnTarget、initialFlowPending、verifiedExitPending）+ `WaitingAreaGate`；先接 outpre，backend 删除后不保留 backend 状态
+- [x] **A2 统一等待区状态**（`OutPreState` vs `BackendHoldState` 合并）：`WaitingAreaSessionState`（authTarget、returnTarget、initialFlowPending、verifiedExitPending）+ `WaitingAreaGate`；先接 outpre，backend 删除后不保留 backend 状态
 - [ ] **A3 ConnectionHandoff + 隔离 proxy join**：`join/held/verified/released/failed` 状态机；`eventLoop().join()` 从事件回调移除（`ProfileSkinApplySupport`、`ServerLoginSuccessPacketReplacer`）
 - [ ] **A4 CredentialFlow 显式 LinkSubmit + 模块可重注册**：`submit/consume/link` 三态；`ChannelPasswordGateRegistry` / `CredentialChannelRegistry` 提供 unregister；模块注册失败回滚
 - [ ] **A5 outpre 认证会话校验**（原 A6 绑定收敛已随绑定删除取消）：外部认证服返回的档案必须与 claim 的一致；失败回滚等待区
