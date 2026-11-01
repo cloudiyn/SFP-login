@@ -32,8 +32,7 @@ dependencies {
 //    VC
     compileOnly(libs.velocityApi)
     compileOnly(libs.brigadier)
-// Limbo is optional; implementations may provide a bridge adapter. Do not
-// require the limbo API here at compile time.
+// 2.0 起不再内置 Limbo 实现（等待区固定走外部认证服），api 模块不再引用 limbo API。
     // Netty is needed by API types (connection/player extensions) but only at compile time
     compileOnly(libs.nettyAll)
 // Exposed ORM

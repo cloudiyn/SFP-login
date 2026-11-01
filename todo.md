@@ -51,7 +51,7 @@
   - [x] `grep -R "icu\.h2l\|HyperZoneLogin"` 清零（历史文档/生成物除外）
 
 - [x] **M0-3 插件描述符**
-  - [ ] `velocity-plugin.json`：`id=sfplogin`、`name=SFP-login`、`main=cn.starfallplain.sfplogin.SFPLoginBootstrap`；删除不再需要的 `limboapi` 依赖（R3 后）
+  - [x] `velocity-plugin.json`：`id=sfplogin`、`name=SFP-login`、`main=cn.starfallplain.sfplogin.SFPLoginBootstrap`；删除不再需要的 `limboapi` 依赖（R3 后已删）
   - [x] 各内置模块的 `paper-plugin.yml`：main 类改包名；模块 id 保持 `hzl-*`
   - [x] `rootProject.name = "SFP-login"`、jar baseName、发布产物名
 
@@ -160,7 +160,7 @@
 - [x] **C5 spotless 拆分**：12 条路径规则收敛为按模块配置
 - [x] **C6 版本与发布**：`version=2.0.0`（无 `-SNAPSHOT`），删除日历版本计算/`releaseChannel` 后缀逻辑；README 更新
 - [x] **C7 CI**：增加 build+test workflow（当前只有 weekly-release）
-- [ ] **C8 提交**：`build: 收敛构建配置与版本号`
+- [x] **C8 提交**：`build: 收敛构建配置与版本号`
 
 ---
 
@@ -174,7 +174,7 @@
 ## 风险 / 待确认
 
 - [ ] 旧目录删除时机（M0-1 验收后）
-- [ ] 类名前缀 H1、API 版本 H2、todo 提交 H3
+- [x] 类名前缀 H1（只改入口类 `SFPLoginMain`/`SFPLoginBootstrap`，其余 `HyperZone*` 保留）、API 版本 H2（`apiVersion=2.0.0`）、todo 提交 H3（`todo.md` 已入库）
 - [ ] 外部/独立模块 jar 需随包名变更重新构建（它们依赖 `api` 的旧包名会编译失败）
 - [ ] dialog 自定义包需与 ViaVersion/其他聊天插件共存验证（不支持 ViaVersion 客户端）
-- [ ] Floodgate 运行时若未安装，表单路径自动回退聊天
+- [x] Floodgate 运行时若未安装，表单路径自动回退聊天（`FloodgateAuthPromptPresenter.isSupported` 判定失败 → `AuthPromptPresenterRegistry.select` 返回 null → 聊天命令提示）

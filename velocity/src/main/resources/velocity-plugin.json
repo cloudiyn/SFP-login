@@ -3,6 +3,6 @@
   "name":"SFP-login",
   "version":"${pluginVersion}",
   "authors":["ksqeib"],
-  "dependencies":[{"id":"limboapi","optional":true},{"id":"floodgate","optional":true}],
+  "dependencies":[{"id":"floodgate","optional":true}],
   "main":"cn.starfallplain.sfplogin.SFPLoginBootstrap"
 }
