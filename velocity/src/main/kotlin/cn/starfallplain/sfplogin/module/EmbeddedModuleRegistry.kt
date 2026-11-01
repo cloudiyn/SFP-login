@@ -22,75 +22,90 @@
 package cn.starfallplain.sfplogin.module
 
 import cn.starfallplain.sfplogin.api.module.HyperSubModule
+import cn.starfallplain.sfplogin.api.module.ModuleDescriptor
 
-data class EmbeddedModuleSpec(
-    val configKey: String,
-    val displayName: String,
-    val externalPluginId: String,
-    val implementationClassName: String,
-    val requiredPluginIds: List<String> = emptyList(),
-)
-
+/**
+ * 内置模块描述符表。
+ *
+ * 主插件只遍历 [descriptors] 完成装配，不再逐个硬编码模块；[byId] 兼顾按 id 查询
+ * （例如命令或诊断使用）。描述符只描述"是什么"，不持有任何运行时状态。
+ */
 object EmbeddedModuleRegistry {
-    val authFloodgate = EmbeddedModuleSpec(
+    val authFloodgate = ModuleDescriptor(
+        id = "hzl-auth-floodgate",
         configKey = "authFloodgate",
         displayName = "Auth Floodgate",
-        externalPluginId = "hzl-auth-floodgate",
         implementationClassName = "cn.starfallplain.sfplogin.auth.floodgate.FloodgateSubModule",
         requiredPluginIds = listOf("floodgate"),
     )
 
-    val authOffline = EmbeddedModuleSpec(
+    val authOffline = ModuleDescriptor(
+        id = "hzl-auth-offline",
         configKey = "authOffline",
         displayName = "Auth Offline",
-        externalPluginId = "hzl-auth-offline",
         implementationClassName = "cn.starfallplain.sfplogin.auth.offline.OfflineSubModule",
     )
 
-    val authYggd = EmbeddedModuleSpec(
+    val authYggd = ModuleDescriptor(
+        id = "hzl-auth-yggd",
         configKey = "authYggd",
         displayName = "Auth Yggdrasil",
-        externalPluginId = "hzl-auth-yggd",
         implementationClassName = "cn.starfallplain.sfplogin.auth.online.main.YggdrasilSubModule",
     )
 
-    val safe = EmbeddedModuleSpec(
+    val safe = ModuleDescriptor(
+        id = "hzl-safe",
         configKey = "safe",
         displayName = "Safe",
-        externalPluginId = "hzl-safe",
         implementationClassName = "cn.starfallplain.sfplogin.safe.SafeSubModule",
     )
 
-    val profileSkin = EmbeddedModuleSpec(
+    val profileSkin = ModuleDescriptor(
+        id = "hzl-profile-skin",
         configKey = "profileSkin",
         displayName = "Profile Skin",
-        externalPluginId = "hzl-profile-skin",
         implementationClassName = "cn.starfallplain.sfplogin.profile.skin.ProfileSkinSubModule",
     )
 
-    val qqWhitelist = EmbeddedModuleSpec(
+    val qqWhitelist = ModuleDescriptor(
+        id = "hzl-qq-whitelist",
         configKey = "qqWhitelist",
         displayName = "QQ Whitelist",
-        externalPluginId = "hzl-qq-whitelist",
         implementationClassName = "cn.starfallplain.sfplogin.qq.whitelist.QqWhitelistSubModule",
     )
 
-    val dataMerge = EmbeddedModuleSpec(
+    val dataMerge = ModuleDescriptor(
+        id = "hzl-data-merge",
         configKey = "dataMerge",
         displayName = "Data Merge",
-        externalPluginId = "hzl-data-merge",
         implementationClassName = "cn.starfallplain.sfplogin.merge.MergeSubModule",
     )
 
-    fun instantiate(spec: EmbeddedModuleSpec, classLoader: ClassLoader): HyperSubModule? {
+    /** 全部内置模块，按装配顺序排列。 */
+    val descriptors: List<ModuleDescriptor> = listOf(
+        authFloodgate,
+        authOffline,
+        authYggd,
+        safe,
+        profileSkin,
+        qqWhitelist,
+        dataMerge,
+    )
+
+    private val descriptorsById: Map<String, ModuleDescriptor> = descriptors.associateBy { it.id }
+
+    fun byId(id: String): ModuleDescriptor? = descriptorsById[id]
+
+    fun instantiate(spec: ModuleDescriptor, classLoader: ClassLoader): HyperSubModule? {
+        val className = spec.implementationClassName ?: return null
         val moduleClass = try {
-            Class.forName(spec.implementationClassName, true, classLoader)
+            Class.forName(className, true, classLoader)
         } catch (_: ClassNotFoundException) {
             return null
         }
 
         require(HyperSubModule::class.java.isAssignableFrom(moduleClass)) {
-            "${spec.implementationClassName} does not implement HyperSubModule"
+            "$className does not implement HyperSubModule"
         }
 
         val constructor = moduleClass.getDeclaredConstructor()

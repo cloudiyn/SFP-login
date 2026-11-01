@@ -26,6 +26,7 @@ object MessageKeys {
         const val ONLY_PLAYER = "common.only-player"
         const val NO_PERMISSION = "common.no-permission"
         const val PLAYER_STATE_UNAVAILABLE = "common.player-state-unavailable"
+        const val PLUGIN_CONFLICT = "common.plugin-conflict"
     }
 
     object Chat {
@@ -40,6 +41,7 @@ object MessageKeys {
         const val USAGE_UUID = "hzl.usage.uuid"
         const val USAGE_PASSWORD = "hzl.usage.password"
         const val RELOADED = "hzl.reloaded"
+        const val RELOAD_FAILED = "hzl.reload-failed"
         const val REAUTH_START = "hzl.reauth-start"
         const val AUTH_FLOW_UNAVAILABLE = "hzl.auth-flow-unavailable"
         const val UUID_PROXY_PLAYER = "hzl.uuid.proxy-player"

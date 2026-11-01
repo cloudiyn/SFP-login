@@ -143,13 +143,13 @@
 
 ## B 组：LoginManager / 配置 / 转发重写
 
-- [ ] **B1 放行顺序事务化**：先 `markWaitingAreaLeavePending`/`onVerified`，成功后再 `notifiedReadyPlayers.add`；失败回滚并允许重试（`LoginManager.kt:256-262`）
-- [ ] **B2 拆分 LoginManager**（642 行 → `CredentialClaimService` / `AwaitingLoginSessions` / `TransitionSequencer` / `PlayerSessionView`）
-- [ ] **B3 ConfigStore + 可重载快照**：auth/vServer 配置 reload 后重建不可变快照；`messages()` 失败显式上报；解锁 `ProfileBindingCodeService` 已删除后的 reload 路径
-- [ ] **B4 LoginPacketRewriteService + off-thread**：统一 4 处登录包改写；`eventLoop().join()` 移到线程池/api 线程；超时降级
-- [ ] **B5 i18n 收口**：移除 `/bindcode` 回退文案；所有失败路径有明确 key；中英俄三语同步
-- [ ] **B6 模块描述符化**：`EmbeddedModuleRegistry` 改 `ModuleDescriptor` 注册（可先文档化 + 最小实现）
-- [ ] **B7 提交**：`refactor(core): 放行顺序、配置快照与登录包重写`
+- [x] **B1 放行顺序事务化**：先 `markWaitingAreaLeavePending`/`onVerified`，成功后再 `notifiedReadyPlayers.add`；失败回滚并允许重试（`LoginManager.kt:256-262`）
+- [x] **B2 拆分 LoginManager**（642 行 → `CredentialClaimService` / `AwaitingLoginSessions` / `TransitionSequencer` / `PlayerSessionView`）
+- [x] **B3 ConfigStore + 可重载快照**：auth/vServer 配置 reload 后重建不可变快照；`messages()` 失败显式上报；解锁 `ProfileBindingCodeService` 已删除后的 reload 路径
+- [x] **B4 LoginPacketRewriteService + off-thread**：统一 4 处登录包改写；`eventLoop().join()` 移到线程池/api 线程；超时降级
+- [x] **B5 i18n 收口**：移除 `/bindcode` 回退文案；所有失败路径有明确 key；中英俄三语同步
+- [x] **B6 模块描述符化**：`EmbeddedModuleRegistry` 改 `ModuleDescriptor` 注册（可先文档化 + 最小实现）
+- [x] **B7 提交**：`refactor(core): 放行顺序、配置快照与登录包重写`
 
 ## C 组：构建 / 反射 / 测试边界
 

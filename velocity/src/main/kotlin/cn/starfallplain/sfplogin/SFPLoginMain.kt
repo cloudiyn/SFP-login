@@ -56,7 +56,6 @@ import cn.starfallplain.sfplogin.manager.LoginManager
 import cn.starfallplain.sfplogin.message.MessageKeys
 import cn.starfallplain.sfplogin.message.MessageService
 import cn.starfallplain.sfplogin.module.EmbeddedModuleRegistry
-import cn.starfallplain.sfplogin.module.EmbeddedModuleSpec
 import cn.starfallplain.sfplogin.profile.CredentialChannelRegistryImpl
 import cn.starfallplain.sfplogin.profile.VelocityHyperZoneProfileService
 import cn.starfallplain.sfplogin.profile.WaitingAreaReleaseGateRegistryImpl
@@ -162,7 +161,7 @@ class SFPLoginMain(
         ConfigFormatProvider.bind(ConfigFormat.fromKey(startConfig.format))
         // ── 第三步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, startConfig.language))
-        loadCoreConfig()
+        context.coreConfig = loadCoreConfig()
         credentialChannelRegistry = CredentialChannelRegistryImpl(coreConfig.auth)
         moduleRegistrar = cn.starfallplain.sfplogin.runtime.ModuleRegistrar(logger, credentialChannelRegistry)
         context.onClose("modules") { moduleRegistrar.unregisterAll() }
@@ -292,24 +291,52 @@ class SFPLoginMain(
      */
     fun unregisterModule(moduleId: String): Boolean = moduleRegistrar.unregister(moduleId)
 
+    /**
+     * 按描述符表装配内置模块。
+     *
+     * 开关值集中在一处映射：新增模块只需要往 [EmbeddedModuleRegistry.descriptors] 里加一条，
+     * 并在 [moduleEnabled] 里补上对应的配置读取，主流程不再逐个硬编码。
+     */
     private fun registerConfiguredEmbeddedModules() {
-        registerEmbeddedModule(EmbeddedModuleRegistry.authFloodgate, coreConfig.modules.authFloodgate)
-        registerEmbeddedModule(EmbeddedModuleRegistry.authOffline, coreConfig.modules.authOffline)
-        registerEmbeddedModule(EmbeddedModuleRegistry.authYggd, coreConfig.modules.authYggd)
-        registerEmbeddedModule(EmbeddedModuleRegistry.safe, coreConfig.modules.safe)
-        registerEmbeddedModule(EmbeddedModuleRegistry.profileSkin, coreConfig.modules.profileSkin)
-        registerEmbeddedModule(EmbeddedModuleRegistry.qqWhitelist, coreConfig.modules.qqWhitelist)
-        registerEmbeddedModule(EmbeddedModuleRegistry.dataMerge, coreConfig.modules.dataMerge)
+        for (descriptor in EmbeddedModuleRegistry.descriptors) {
+            registerEmbeddedModule(descriptor, moduleEnabled(descriptor))
+        }
     }
 
-    private fun registerEmbeddedModule(spec: EmbeddedModuleSpec, enabled: Boolean) {
+    /** 描述符 -> 当前的 `modules` 开关值；未识别的键视为启用并在日志里提示。 */
+    private fun moduleEnabled(descriptor: cn.starfallplain.sfplogin.api.module.ModuleDescriptor): Boolean {
+        val modules = coreConfig.modules
+        return when (descriptor.configKey) {
+            "authFloodgate" -> modules.authFloodgate
+            "authOffline" -> modules.authOffline
+            "authYggd" -> modules.authYggd
+            "safe" -> modules.safe
+            "profileSkin" -> modules.profileSkin
+            "qqWhitelist" -> modules.qqWhitelist
+            "dataMerge" -> modules.dataMerge
+            else -> {
+                logger.warn("模块 {} 的配置键 {} 没有对应的配置字段，按启用处理", descriptor.id, descriptor.configKey)
+                true
+            }
+        }
+    }
+
+    private fun registerEmbeddedModule(
+        spec: cn.starfallplain.sfplogin.api.module.ModuleDescriptor,
+        enabled: Boolean,
+    ) {
         if (!enabled) {
             logger.info("内置模块已禁用: ${spec.displayName} (modules.conf -> ${spec.configKey}=false)")
             return
         }
 
-        if (proxy.pluginManager.getPlugin(spec.externalPluginId).isPresent) {
-            logger.info("检测到外部插件 ${spec.externalPluginId}，跳过内置模块 ${spec.displayName}")
+        if (proxy.pluginManager.getPlugin(spec.id).isPresent) {
+            logger.info("检测到外部插件 ${spec.id}，跳过内置模块 ${spec.displayName}")
+            return
+        }
+
+        if (!spec.supportsEmbedded) {
+            logger.info("模块 ${spec.displayName} 只提供独立 jar，主插件不再尝试内置装配")
             return
         }
 
@@ -395,12 +422,38 @@ class SFPLoginMain(
         logger.warn("========================================")
     }
 
-    fun reloadRuntimeConfigs() {
-        loadCoreConfig()
-        if (::messageService.isInitialized) {
-            messageService.load(coreConfig.messages)
+    /**
+     * 重载运行时配置。
+     *
+     * 顺序：加载新的 [CoreConfig] → 发布为新快照 → 重新加载消息配置 → 同步调试命令。
+     * 任何一步抛错都会回退到上一个快照并把原因写进日志，同时返回 `false`，
+     * 让命令层能明确告知调用方“这次重载没成功”，而不是让服务器带着半套配置继续跑。
+     *
+     * @return 重载是否成功
+     */
+    fun reloadRuntimeConfigs(): Boolean {
+        val previous = context.coreConfig
+        return try {
+            val reloaded = loadCoreConfig()
+            context.coreConfig = reloaded
+            if (::messageService.isInitialized) {
+                messageService.load(reloaded.messages)
+            }
+            syncSlowTestCommands()
+            logger.info(
+                "配置已重载: revision={} vServer.mode={} defaultLocale={}",
+                context.configStore.revision(),
+                reloaded.vServer.mode,
+                reloaded.messages.defaultLocale,
+            )
+            true
+        } catch (t: Throwable) {
+            if (previous != null) {
+                context.coreConfig = previous
+            }
+            logger.error("配置重载失败，已回退到上一份配置快照（revision={}）", context.configStore.revision(), t)
+            false
         }
-        syncSlowTestCommands()
     }
 
     private fun syncSlowTestCommands() {
@@ -425,7 +478,13 @@ class SFPLoginMain(
 
 
 
-    private fun loadCoreConfig() {
+    /**
+     * 从磁盘加载核心配置，但**不**发布到 [HyperZoneContext]。
+     *
+     * 重载路径需要“加载成功才替换快照”，因此这里返回加载结果，由调用方决定何时
+     * [HyperZoneContext.coreConfig] 赋值。
+     */
+    private fun loadCoreConfig(): CoreConfig {
         var migrated = false
         val config = ConfigLoader.loadConfig<CoreConfig>(
             dataDirectory = dataDirectory,
@@ -437,9 +496,9 @@ class SFPLoginMain(
             },
             forceSaveHook = { _, firstCreation -> firstCreation || migrated },
         )
-        context.coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, config.messages.defaultLocale))
+        return config
     }
 
     private fun connectDatabase() {

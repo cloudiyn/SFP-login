@@ -27,7 +27,6 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import cn.starfallplain.sfplogin.api.db.Profile
 import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
 import java.util.*
-import java.util.concurrent.CompletableFuture
 
 internal fun buildDeliveredGameProfile(
     currentGameProfile: GameProfile,
@@ -87,21 +86,6 @@ private data class NormalizedGameProfileProperty(
 
 internal fun setConnectedPlayerGameProfile(player: ConnectedPlayer, profile: GameProfile) {
     VelocityInternalAccess.setConnectedPlayerProfile(player, profile)
-}
-
-internal fun <T> executeOnPlayerEventLoop(player: ConnectedPlayer, action: () -> T): T {
-    val eventLoop = player.connection.eventLoop()
-    if (eventLoop.inEventLoop()) {
-        return action()
-    }
-
-    val future = CompletableFuture<T>()
-    eventLoop.execute {
-        runCatching(action)
-            .onSuccess(future::complete)
-            .onFailure(future::completeExceptionally)
-    }
-    return future.join()
 }
 
 /**

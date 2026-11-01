@@ -162,7 +162,10 @@ class HyperZoneLoginCommand {
 
     private fun executeReload(sender: CommandSource): Int {
         val main = sfpLoginMain()
-        main.reloadRuntimeConfigs()
+        if (!main.reloadRuntimeConfigs()) {
+            main.messageService.send(sender, MessageKeys.HzlCommand.RELOAD_FAILED)
+            return 0
+        }
         main.messageService.send(sender, MessageKeys.HzlCommand.RELOADED)
         return Command.SINGLE_SUCCESS
     }

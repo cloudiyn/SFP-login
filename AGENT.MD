@@ -260,3 +260,21 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
 - **比较规则**：用户名去首尾空白后忽略大小写；UUID 只在双方都提供时比较（老握手可能不带 UUID
   字段，这种握手已由 forwarding 校验保证，不应因缺字段拒绝）。
 - 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/vServer/outpre/OutPreLoginClaimVerifierTest.kt`。
+
+## 19. 放行顺序、配置快照与模块描述符
+
+- **放行顺序**：`WaitingAreaReleaseSequencer.tryLeaveWaiting` 必须先过档案冲突检查与
+  `WaitingAreaReleaseGateRegistry` 闸门，再走 `WaitingAreaReleaseTransaction`（先
+  `markWaitingAreaLeavePending`、再 `onVerified`，任一步失败回滚），**最后**才把玩家记进
+  `notifiedReadyPlayers`。反序会让一次失败把玩家永久钉在“已通知”状态，重试被直接挡掉。
+- **配置快照**：`ConfigStore` 持有一份不可变 `CoreConfig` 快照，`publish` 每次推进
+  `revision`；`HyperZoneContext.coreConfig` 的读写都经过它。`reloadRuntimeConfigs()` 是事务式的：
+  加载成功才发布新快照，任一步（含消息配置重载）抛错就回滚并返回 `false`，命令层据此回
+  `hzl.reload-failed`。禁止在重载路径里直接给旧字段赋值。
+- **登录阶段事件派发**：登录链路里等事件结果一律走 `LoginRewriteEvents.fire`，它有
+  `10s` 上限，超时或处理器抛错都按“不改写”降级，只记日志，绝不把异常抛回登录线程。
+- **模块描述符**：模块的身份/开关/依赖集中在 `EmbeddedModuleRegistry.descriptors`
+  （`ModuleDescriptor`），主插件遍历装配，新增模块只加一条描述符 + 在 `moduleEnabled`
+  里补配置读取。独立 jar 与内置实现共用同一个 `id`，用于“检测到外部插件就跳过内置”的去重。
+- 守护测试：`WaitingAreaReleaseTransactionTest`、`ConfigStoreTest`、
+  `EmbeddedModuleRegistryTest`、`CredentialLinkFlowTest`、`ModuleRegistrarTest`。

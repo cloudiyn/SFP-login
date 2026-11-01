@@ -24,83 +24,68 @@ package cn.starfallplain.sfplogin.manager
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import cn.starfallplain.sfplogin.api.db.Profile
-import cn.starfallplain.sfplogin.api.event.area.PlayerAreaTransitionReason
 import cn.starfallplain.sfplogin.api.event.auth.LoginClaim
 import cn.starfallplain.sfplogin.api.event.auth.LoginHandleContext
 import cn.starfallplain.sfplogin.api.event.auth.LoginHandleRequestEvent
 import cn.starfallplain.sfplogin.api.event.auth.LoginHandleResult
-import cn.starfallplain.sfplogin.api.event.auth.LoginHandleSession
 import cn.starfallplain.sfplogin.api.log.HyperZoneDebugType
 import cn.starfallplain.sfplogin.api.log.debug
+import cn.starfallplain.sfplogin.api.message.HyperZoneMessagePlaceholder
 import cn.starfallplain.sfplogin.api.player.HyperZonePlayer
 import cn.starfallplain.sfplogin.api.player.getChannel
-import cn.starfallplain.sfplogin.api.profile.ChannelPasswordGateRegistry
-import cn.starfallplain.sfplogin.api.profile.HyperZoneCredentialFlow
 import cn.starfallplain.sfplogin.api.profile.HyperZoneCredential
+import cn.starfallplain.sfplogin.api.profile.HyperZoneCredentialFlow
 import cn.starfallplain.sfplogin.api.profile.HyperZoneProfileService
-import cn.starfallplain.sfplogin.api.profile.WaitingAreaReleaseGate
-import cn.starfallplain.sfplogin.api.profile.WaitingAreaReleaseGateRegistryProvider
-import cn.starfallplain.sfplogin.SFPLoginMain
-import cn.starfallplain.sfplogin.listener.PlayerAreaLifecycleListener
-import cn.starfallplain.sfplogin.api.message.HyperZoneMessagePlaceholder
 import cn.starfallplain.sfplogin.message.MessageKeys
 import cn.starfallplain.sfplogin.message.MessageService
 import cn.starfallplain.sfplogin.player.VelocityHyperZonePlayer
+import cn.starfallplain.sfplogin.sfpLoginMain
 import io.netty.channel.Channel
-import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import cn.starfallplain.sfplogin.sfpLoginMain
 
+/**
+ * 登录编排：把"认证模块产出的凭证"变成"已 attach 的档案"。
+ *
+ * 职责边界（拆分后）：
+ * - 凭证存取交给 [CredentialClaimStore]；
+ * - 等待玩家输入的会话登记交给 [AwaitingLoginSessions]；
+ * - 认证通过后离开等待区的三级关卡交给 [WaitingAreaReleaseSequencer]；
+ * - 本类只保留 claim 分发、超时、凭证 → 档案的转换与渠道提示。
+ */
 class LoginManager(
     private val server: ProxyServer,
     private val profileService: HyperZoneProfileService,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 ) : HyperZoneCredentialFlow {
-    private val credentialsByChannel = ConcurrentHashMap<Channel, HyperZoneCredential>()
-    private val readyTransitionOwners = ConcurrentHashMap<UUID, VelocityHyperZonePlayer>()
-    private val notifiedReadyPlayers = ConcurrentHashMap.newKeySet<VelocityHyperZonePlayer>()
-    private val lastReadyConflictPlayerIds = ConcurrentHashMap<VelocityHyperZonePlayer, Set<UUID>>()
 
-    /** 当前正在进行的 claim 与其 session 的对应关系，用于判定 claim 是否在等待玩家手动输入。 */
-    private val awaitingSessions = CopyOnWriteArrayList<AwaitingClaim>()
-
-    private class AwaitingClaim(
-        val future: CompletableFuture<LoginHandleResult>,
-        val session: LoginHandleSession,
-    )
+    private val credentialStore = CredentialClaimStore()
+    private val awaitingSessions = AwaitingLoginSessions()
+    private val releaseSequencer = WaitingAreaReleaseSequencer(server, profileService)
 
     override fun submitCredential(player: HyperZonePlayer, credential: HyperZoneCredential) {
-        submitCredentialByChannel(resolveChannel(player), credential)
+        credentialStore.submit(player, credential)
     }
 
     override fun replaceCredential(player: HyperZonePlayer, oldChannelId: String, credential: HyperZoneCredential) {
-        val channel = resolveChannel(player)
-        val existing = credentialsByChannel[channel]
-            ?: throw IllegalStateException("玩家 ${player.clientOriginalName} 当前没有可替换凭证")
-        if (existing.channelId != oldChannelId) {
-            throw IllegalStateException("玩家 ${player.clientOriginalName} 当前凭证渠道与期望不一致: expected=$oldChannelId actual=${existing.channelId}")
-        }
-        credentialsByChannel[channel] = credential
+        credentialStore.replace(player, oldChannelId, credential)
     }
 
     override fun getSubmittedCredentials(player: HyperZonePlayer): List<HyperZoneCredential> {
-        val channel = resolveChannel(player)
-        return credentialsByChannel[channel]?.let(::listOf).orEmpty()
+        return credentialStore.get(player)
     }
 
     override fun clearCredentials(player: HyperZonePlayer) {
-        resolveChannelOrNull(player)?.let(credentialsByChannel::remove)
+        credentialStore.clear(player)
     }
 
     fun clearCredentialsByChannel(channel: Channel) {
-        credentialsByChannel.remove(channel)
+        credentialStore.clearByChannel(channel)
     }
 
     override fun overVerify(player: HyperZonePlayer): UUID? {
@@ -173,10 +158,11 @@ class LoginManager(
     fun onProfileAttached(player: HyperZonePlayer) {
         val velocityPlayer = player as? VelocityHyperZonePlayer ?: return
         runCatching {
-            tryLeaveWaiting(velocityPlayer)
+            releaseSequencer.tryLeaveWaiting(velocityPlayer)
         }.onFailure { throwable ->
             debug(HyperZoneDebugType.OUTPRE_TRACE) {
-                "loginManager.onProfileAttached transition failed player=${velocityPlayer.clientOriginalName} reason=${throwable.message}"
+                "loginManager.onProfileAttached transition failed " +
+                    "player=${velocityPlayer.clientOriginalName} reason=${throwable.message}"
             }
         }
     }
@@ -184,117 +170,7 @@ class LoginManager(
     override fun resetVerify(player: HyperZonePlayer) {
         clearCredentials(player)
         if (player is VelocityHyperZonePlayer) {
-            resetTransientLoginState(player)
-        }
-    }
-
-    private fun resetTransientLoginState(player: VelocityHyperZonePlayer) {
-        notifiedReadyPlayers.remove(player)
-        lastReadyConflictPlayerIds.remove(player)
-    }
-
-    private fun tryLeaveWaiting(hyperPlayer: VelocityHyperZonePlayer) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
-            "loginManager.tryLeaveWaiting player=${hyperPlayer.clientOriginalName} attachedProfile=${hyperPlayer.hasAttachedProfile()} proxyBound=${hyperPlayer.getProxyPlayerOrNull() != null}"
-        }
-
-        if (!hyperPlayer.hasAttachedProfile()) {
-            return
-        }
-
-        val player = hyperPlayer.getProxyPlayerOrNull() ?: return
-        val main = sfpLoginMain()
-        val attachedProfileId = profileService.getAttachedProfile(hyperPlayer)?.id ?: return
-
-        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, hyperPlayer)
-        if (transitionOwner != null && transitionOwner !== hyperPlayer) {
-            notifyProfileConflict(hyperPlayer, listOf(transitionOwner))
-            return
-        }
-
-        try {
-            val conflictingPlayers = server.allPlayers.asSequence()
-                .mapNotNull { onlinePlayer ->
-                    val otherHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(onlinePlayer) ?: return@mapNotNull null
-                    if (otherHyperPlayer === hyperPlayer) {
-                        return@mapNotNull null
-                    }
-
-                    if (profileService.getAttachedProfile(otherHyperPlayer)?.id != attachedProfileId) {
-                        return@mapNotNull null
-                    }
-
-                    val isStillInWaitingArea = main.serverAdapter?.isPlayerInWaitingArea(onlinePlayer) == true
-                    if (isStillInWaitingArea && !notifiedReadyPlayers.contains(otherHyperPlayer)) {
-                        return@mapNotNull null
-                    }
-
-                    otherHyperPlayer
-                }
-                .toList()
-
-            if (conflictingPlayers.isNotEmpty()) {
-                notifyProfileConflict(hyperPlayer, conflictingPlayers)
-                return
-            }
-
-            // 等待区放行闸门：认证通过且档案已 attach 后，真正离开等待区之前必须由全部闸门放行。
-            // 该闸门是同步阻塞判定，拒绝时玩家停留在等待区（或按闸门要求断开连接）。
-            val attachedProfile = profileService.getAttachedProfile(hyperPlayer) ?: return
-            val gateDecision = WaitingAreaReleaseGateRegistryProvider.getOrNull()
-                ?.evaluate(player, attachedProfile)
-                ?: WaitingAreaReleaseGate.Decision.Allow()
-            if (gateDecision is WaitingAreaReleaseGate.Decision.Deny) {
-                gateDecision.message?.let { player.sendMessage(it) }
-                if (gateDecision.disconnect) {
-                    debug(HyperZoneDebugType.OUTPRE_TRACE) {
-                        "loginManager.tryLeaveWaiting denied and disconnected player=${hyperPlayer.clientOriginalName} profile=${attachedProfile.name}"
-                    }
-                    player.disconnect(gateDecision.message ?: Component.empty())
-                }
-                return
-            }
-            val releaseNotice = (gateDecision as? WaitingAreaReleaseGate.Decision.Allow)?.notice
-
-            lastReadyConflictPlayerIds.remove(hyperPlayer)
-            if (!notifiedReadyPlayers.add(hyperPlayer)) {
-                return
-            }
-
-            PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
-            main.serverAdapter?.onVerified(player)
-            releaseNotice?.let { player.sendMessage(it) }
-        } finally {
-            readyTransitionOwners.remove(attachedProfileId, hyperPlayer)
-        }
-    }
-
-    private fun notifyProfileConflict(player: VelocityHyperZonePlayer, conflictingPlayers: List<VelocityHyperZonePlayer>) {
-        val conflictPlayerIds = conflictingPlayers.asSequence()
-            .filter { it !== player }
-            .mapNotNull { it.clientOriginalUUID }
-            .toSet()
-        if (conflictPlayerIds.isEmpty()) {
-            return
-        }
-
-        val previousConflictPlayerIds = lastReadyConflictPlayerIds.put(player, conflictPlayerIds)
-        if (previousConflictPlayerIds == conflictPlayerIds) {
-            return
-        }
-
-        val messageService = sfpLoginMain().messageService
-        player.sendMessage(messageService.render(player, MessageKeys.Player.PROFILE_CONFLICT_SELF))
-        conflictingPlayers.forEach { conflictingPlayer ->
-            if (conflictingPlayer === player) {
-                return@forEach
-            }
-            conflictingPlayer.sendMessage(
-                messageService.render(
-                    conflictingPlayer,
-                    MessageKeys.Player.PROFILE_CONFLICT_OTHER
-                )
-            )
+            releaseSequencer.resetTransientState(player)
         }
     }
 
@@ -377,6 +253,16 @@ class LoginManager(
             output.complete(result)
         }
 
+        fun completeAllFailed() {
+            completeOnce(
+                Result(
+                    status = Status.ALL_FAILED,
+                    failures = failures.toList(),
+                    reason = "all claims failed",
+                )
+            )
+        }
+
         val startedClaims = claims.map { claim ->
             val session = VelocityLoginHandleSession(hyperZonePlayer)
             val claimFuture = try {
@@ -394,10 +280,7 @@ class LoginManager(
                 )
             }
             // 登记 session 供超时检查判定"是否正在等待玩家输入"
-            awaitingSessions += AwaitingClaim(claimFuture, session)
-            claimFuture.whenComplete { _, _ ->
-                awaitingSessions.removeIf { it.future === claimFuture }
-            }
+            awaitingSessions.track(claimFuture, session)
             runningTasks += claim.moduleId to claimFuture
             claim to claimFuture
         }
@@ -409,32 +292,33 @@ class LoginManager(
             runningTasks = runningTasks,
             failures = failures,
             startedClaims = startedClaims,
-            deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+            deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis),
         )
 
         startedClaims.forEach { (claim, claimFuture) ->
             claimFuture.whenComplete { result, throwable ->
                 playerChannel.eventLoop().execute {
-                if (completed.get()) {
-                    return@execute
-                }
-
-                if (throwable != null) {
-                    failures += ModuleFailure(claim.moduleId, throwable.message ?: "claim future failed")
-                    if (remaining.decrementAndGet() == 0) {
-                        completeOnce(
-                            Result(
-                                status = Status.ALL_FAILED,
-                                failures = failures.toList(),
-                                reason = "all claims failed"
-                            )
-                        )
+                    if (completed.get()) {
+                        return@execute
                     }
-                    return@execute
-                }
 
-                val handledResult = result ?: LoginHandleResult.failed("claim completed without result")
-                if (handledResult.success) {
+                    if (throwable != null) {
+                        failures += ModuleFailure(claim.moduleId, throwable.message ?: "claim future failed")
+                        if (remaining.decrementAndGet() == 0) {
+                            completeAllFailed()
+                        }
+                        return@execute
+                    }
+
+                    val handledResult = result ?: LoginHandleResult.failed("claim completed without result")
+                    if (!handledResult.success) {
+                        failures += ModuleFailure(claim.moduleId, handledResult.reason ?: "claim rejected")
+                        if (remaining.decrementAndGet() == 0) {
+                            completeAllFailed()
+                        }
+                        return@execute
+                    }
+
                     if (hyperZonePlayer.hasAttachedProfile()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
                         return@execute
@@ -444,35 +328,23 @@ class LoginManager(
                     if (credential == null) {
                         failures += ModuleFailure(claim.moduleId, "claim succeeded without credential")
                         if (remaining.decrementAndGet() == 0) {
-                            completeOnce(
-                                Result(
-                                    status = Status.ALL_FAILED,
-                                    failures = failures.toList(),
-                                    reason = "all claims failed"
-                                )
-                            )
+                            completeAllFailed()
                         }
-                                return@execute
+                        return@execute
                     }
 
                     val submitThrowable = runCatching {
-                        submitCredentialByChannel(playerChannel, credential)
+                        credentialStore.submitToChannel(playerChannel, credential)
                     }.exceptionOrNull()
                     if (submitThrowable != null) {
                         failures += ModuleFailure(
                             claim.moduleId,
-                            "manager submitCredential failed: ${submitThrowable.message ?: "unknown error"}"
+                            "manager submitCredential failed: ${submitThrowable.message ?: "unknown error"}",
                         )
                         if (remaining.decrementAndGet() == 0) {
-                            completeOnce(
-                                Result(
-                                    status = Status.ALL_FAILED,
-                                    failures = failures.toList(),
-                                    reason = "all claims failed"
-                                )
-                            )
+                            completeAllFailed()
                         }
-                                return@execute
+                        return@execute
                     }
 
                     val verifyThrowable = runCatching {
@@ -482,7 +354,7 @@ class LoginManager(
                         clearCredentialsByChannel(playerChannel)
                         failures += ModuleFailure(
                             claim.moduleId,
-                            "manager overVerify failed: ${verifyThrowable.message ?: "unknown error"}"
+                            "manager overVerify failed: ${verifyThrowable.message ?: "unknown error"}",
                         )
                     } else if (hyperZonePlayer.hasAttachedProfile()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
@@ -491,19 +363,10 @@ class LoginManager(
                         clearCredentialsByChannel(playerChannel)
                         failures += ModuleFailure(claim.moduleId, "claimed success but profile was not attached")
                     }
-                } else {
-                    failures += ModuleFailure(claim.moduleId, handledResult.reason ?: "claim rejected")
-                }
 
-                if (remaining.decrementAndGet() == 0) {
-                    completeOnce(
-                        Result(
-                            status = Status.ALL_FAILED,
-                            failures = failures.toList(),
-                            reason = "all claims failed"
-                        )
-                    )
-                }
+                    if (remaining.decrementAndGet() == 0) {
+                        completeAllFailed()
+                    }
                 }
             }
         }
@@ -517,7 +380,7 @@ class LoginManager(
      *
      * 这样可以避免"玩家看提示、打命令"的这段时间被计入固定超时：
      * 一旦超时提前触发，玩家随后提交的凭证将没有任何 claim 在等待，档案永远无法 attach。
-     * 该状态由 [LoginHandleSession.awaitingPlayerInput] 暴露，调用方也可据此决定是否提前把玩家放行到等待区。
+     * 该状态由 [cn.starfallplain.sfplogin.api.event.auth.LoginHandleSession.awaitingPlayerInput] 暴露。
      *
      * @param deadlineNanos 当前的超时截止时间戳；等待玩家输入时会被顺延
      */
@@ -536,7 +399,10 @@ class LoginManager(
             }
 
             // 仍有 claim 在等待玩家输入：暂停计时，整体顺延一个检查周期
-            if (startedClaims.any { (_, future) -> !future.isDone && isClaimAwaitingPlayerInput(future) }) {
+            val awaitingInput = startedClaims.any { (_, future) ->
+                !future.isDone && awaitingSessions.isAwaitingPlayerInput(future)
+            }
+            if (awaitingInput) {
                 debug(HyperZoneDebugType.GENERAL) {
                     "login dispatch timeout paused: claim is awaiting player input"
                 }
@@ -547,7 +413,7 @@ class LoginManager(
                     runningTasks = runningTasks,
                     failures = failures,
                     startedClaims = startedClaims,
-                    deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+                    deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis),
                 )
                 return@execute
             }
@@ -562,7 +428,7 @@ class LoginManager(
                     runningTasks = runningTasks,
                     failures = failures,
                     startedClaims = startedClaims,
-                    deadlineNanos = deadlineNanos
+                    deadlineNanos = deadlineNanos,
                 )
                 return@execute
             }
@@ -574,42 +440,11 @@ class LoginManager(
                     Result(
                         status = Status.TIMEOUT,
                         failures = failures.toList(),
-                        reason = "login dispatch timeout after ${timeoutMillis}ms"
+                        reason = "login dispatch timeout after ${timeoutMillis}ms",
                     )
                 )
             }
         }
-    }
-
-    /**
-     * 判断某个 claim 当前是否处于"等待玩家手动输入"状态。
-     *
-     * 这里通过 claim 自己持有的 [LoginHandleSession] 判定，避免 LoginManager 依赖具体认证模块。
-     */
-    private fun isClaimAwaitingPlayerInput(future: CompletableFuture<LoginHandleResult>): Boolean {
-        return runCatching {
-            awaitingSessions.firstOrNull { entry -> entry.future === future }?.session?.awaitingPlayerInput() == true
-        }.getOrDefault(false)
-    }
-
-    private fun submitCredentialByChannel(channel: Channel, credential: HyperZoneCredential) {
-        val existing = credentialsByChannel[channel]
-        if (existing != null) {
-            throw IllegalStateException(
-                "玩家 channel=$channel 已存在凭证 ${existing.channelId}，必须先替换后再提交"
-            )
-        }
-        credentialsByChannel[channel] = credential
-    }
-
-
-    private fun resolveChannel(player: HyperZonePlayer): Channel {
-        return resolveChannelOrNull(player)
-            ?: throw IllegalStateException("玩家 ${player.clientOriginalName} 当前未绑定 Proxy Player，无法定位 channel")
-    }
-
-    private fun resolveChannelOrNull(player: HyperZonePlayer): Channel? {
-        return player.getProxyPlayerOrNull()?.getChannel()
     }
 
     companion object {
@@ -617,28 +452,3 @@ class LoginManager(
         private val PLAIN_TEXT = PlainTextComponentSerializer.plainText()
     }
 }
-
-private class VelocityLoginHandleSession(
-    private val player: VelocityHyperZonePlayer
-) : LoginHandleSession {
-    override fun originalName(): String = player.clientOriginalName
-
-    override fun hasAttachedProfile(): Boolean = player.hasAttachedProfile()
-
-    /**
-     * 通过渠道密码门注册表判定当前会话是否正等待玩家手动输入密码。
-     *
-     * 这样登录编排层无需依赖任何具体认证模块，即可把"等待玩家输入"的耗时排除出 claim 超时。
-     */
-    override fun awaitingPlayerInput(): Boolean {
-        return runCatching {
-            ChannelPasswordGateRegistry.resolveGate(player)
-                ?.getGateStatus(player) != null
-        }.getOrDefault(false)
-    }
-
-    override fun sendMessage(message: net.kyori.adventure.text.Component) {
-        player.sendMessage(message)
-    }
-}
-

@@ -22,6 +22,7 @@
 package cn.starfallplain.sfplogin.runtime
 
 import cn.starfallplain.sfplogin.SFPLoginMain
+import cn.starfallplain.sfplogin.config.ConfigStore
 import cn.starfallplain.sfplogin.config.CoreConfig
 import cn.starfallplain.sfplogin.config.StartConfig
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
@@ -51,14 +52,24 @@ class HyperZoneContext internal constructor(
     val dataDirectory: Path
         get() = main.dataDirectory
 
+    /** 配置快照持有者：重载时整体替换快照，读方永远看到完整的一版配置。 */
+    val configStore: ConfigStore = ConfigStore()
+
     /**
      * 当前生效的核心配置快照。
      *
      * `null` 表示配置尚未加载完成；读取方通过 [requireCoreConfig] 显式表达“此时必须已加载”。
+     * 写入走 [ConfigStore.publish]，因此每次赋值都会推进 [ConfigStore.revision]。
      */
-    @Volatile
-    var coreConfig: CoreConfig? = null
-        internal set
+    var coreConfig: CoreConfig?
+        get() = configStore.coreOrNull()
+        internal set(value) {
+            if (value == null) {
+                configStore.clear()
+            } else {
+                configStore.publish(value)
+            }
+        }
 
     /**
      * 当前生效的启动前置配置（`start.conf`）。

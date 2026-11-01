@@ -32,6 +32,8 @@ import cn.starfallplain.sfplogin.SFPLoginMain
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import cn.starfallplain.sfplogin.sfpLoginMain
+import cn.starfallplain.sfplogin.manager.LoginRewriteEvents
+import cn.starfallplain.sfplogin.message.MessageKeys
 
 class LoginVerifyListener {
 
@@ -48,15 +50,24 @@ class LoginVerifyListener {
             "loginVerify.onGameProfileRequest channel=${event.connection.getNettyChannel()} incomingName=${incomingProfile.name} incomingUuid=${incomingProfile.id}"
         }
 
-        fun disconnectWithError(logMessage: String, userMessage: String) {
+        fun disconnectWithError(logMessage: String, messageKey: String, fallback: String) {
             sfpLoginMain().logger.error(logMessage)
-            event.connection.disconnectWithMessage(Component.text(userMessage, NamedTextColor.RED))
+            val message = runCatching {
+                sfpLoginMain().messageService.render(null as com.velocitypowered.api.command.CommandSource?, messageKey)
+            }.getOrNull() ?: Component.text(fallback, NamedTextColor.RED)
+            event.connection.disconnectWithMessage(message)
         }
 
-        try {
-            sfpLoginMain().proxy.eventManager.fire(verifyEvent).join()
-        } catch (t: Throwable) {
-            sfpLoginMain().logger.error("初始 GameProfile 扩展校验事件执行失败: ${t.message}", t)
+        // 有界等待：卡住的模块最多让本次校验按“不改写”降级，不能拖死登录线程。
+        val outcome = LoginRewriteEvents.fire(
+            sfpLoginMain().proxy,
+            verifyEvent,
+            label = "verify-initial-game-profile",
+        )
+        if (outcome != LoginRewriteEvents.Outcome.COMPLETED) {
+            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                "loginVerify.degraded outcome=$outcome channel=${event.connection.getNettyChannel()}"
+            }
         }
 
         debug(HyperZoneDebugType.OUTPRE_TRACE) {
@@ -68,7 +79,8 @@ class LoginVerifyListener {
         }else{
             disconnectWithError(
                 "GameProfile 名称校验失败：$incomingName，疑似插件冲突",
-                PLUGIN_CONFLICT_MESSAGE
+                MessageKeys.Common.PLUGIN_CONFLICT,
+                PLUGIN_CONFLICT_MESSAGE,
             )
             return
         }
