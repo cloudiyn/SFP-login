@@ -37,6 +37,10 @@ gradlePlugin {
             id = "cn.starfallplain.sfplogin.runtime-dependencies"
             implementationClass = "cn.starfallplain.sfplogin.gradle.HzlRuntimeDependenciesPlugin"
         }
+        create("sfpLoginModule") {
+            id = "cn.starfallplain.sfplogin.module"
+            implementationClass = "cn.starfallplain.sfplogin.gradle.SfpLoginModulePlugin"
+        }
     }
 }
 

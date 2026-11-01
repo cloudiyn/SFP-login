@@ -20,24 +20,17 @@
  */
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
 }
 
 dependencies {
-    // Build as standalone plugin; api is provided at runtime by the main plugin
-    compileOnly(project(":api"))
-//    VC
+    // 以独立插件形态构建：api 由主插件在运行时提供
     compileOnly(libs.velocityApi)
     compileOnly(libs.nettyAll)
-// Exposed ORM
     compileOnly(libs.exposedCore)
-//    config
     compileOnly(libs.configurateHocon)
     compileOnly(libs.configurateExtraKotlin)
 
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testImplementation(project(":api"))
     testImplementation(libs.velocityApi)
     testImplementation(libs.nettyAll)
     testImplementation(libs.exposedCore)
@@ -46,12 +39,10 @@ dependencies {
     testImplementation(libs.sqliteJdbc)
     testImplementation(libs.configurateHocon)
     testImplementation(libs.configurateExtraKotlin)
-    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {
-    useJUnitPlatform()
-    // JVM toolchain is pinned to 21; --enable-native-access is supported from Java 21 onwards.
+    // JVM 工具链固定在 21；--enable-native-access 从 Java 21 起可用。
     jvmArgs("--enable-native-access=ALL-UNNAMED")
     testLogging {
         showStandardStreams = false

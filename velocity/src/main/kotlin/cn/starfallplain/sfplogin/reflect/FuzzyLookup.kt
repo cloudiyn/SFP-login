@@ -62,30 +62,6 @@ object FuzzyLookup {
         )
     }
 
-    /**
-     * 在 [clazz] 及其父类中查找类型为 [fieldType] 的第 [index] 个声明字段（0-based）。
-     * @throws NoSuchFieldException 未找到
-     */
-    fun fieldByType(clazz: Class<*>, fieldType: Class<*>, index: Int = 0): Field {
-        var found = 0
-        var cur: Class<*>? = clazz
-        while (cur != null) {
-            for (f in cur.declaredFields) {
-                if (fieldType.isAssignableFrom(f.type)) {
-                    if (found == index) {
-                        f.isAccessible = true
-                        return f
-                    }
-                    found++
-                }
-            }
-            cur = cur.superclass
-        }
-        throw NoSuchFieldException(
-            "No field of type ${fieldType.name}[$index] found in ${clazz.name} hierarchy"
-        )
-    }
-
     // ──────────────────────────────────────────────────────────────────────────
     // Method
     // ──────────────────────────────────────────────────────────────────────────
@@ -114,26 +90,6 @@ object FuzzyLookup {
      */
     fun methodByNames(clazz: Class<*>, vararg names: String): Method =
         methodByNames(clazz, emptyArray(), *names)
-
-    /**
-     * 按返回类型 + 参数类型查找方法（忽略名称）。
-     * @throws NoSuchMethodException 未找到
-     */
-    fun methodBySignature(clazz: Class<*>, returnType: Class<*>, vararg paramTypes: Class<*>): Method {
-        var cur: Class<*>? = clazz
-        while (cur != null) {
-            for (m in cur.declaredMethods) {
-                if (m.returnType == returnType && m.parameterTypes.contentEquals(paramTypes)) {
-                    m.isAccessible = true
-                    return m
-                }
-            }
-            cur = cur.superclass
-        }
-        throw NoSuchMethodException(
-            "No method returning ${returnType.name} with params ${paramTypes.map { it.name }} in ${clazz.name}"
-        )
-    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Constructor
@@ -164,13 +120,6 @@ object FuzzyLookup {
     fun constructorFuzzy(clazz: Class<*>, vararg requiredTypes: Class<*>): Constructor<*> {
         val ctors = clazz.declaredConstructors.sortedByDescending { it.parameterCount }
         for (ctor in ctors) {
-            val params = ctor.parameterTypes.toMutableList()
-            val allPresent = requiredTypes.all { req ->
-                params.removeIf { p -> req.isAssignableFrom(p) }
-                    .let { params.size < ctor.parameterCount - params.count { req.isAssignableFrom(it) } + 1 }
-                    .also { }
-            }
-            // Re-check: all requiredTypes assignable from at least one param
             val matched = requiredTypes.all { req ->
                 ctor.parameterTypes.any { p -> req.isAssignableFrom(p) }
             }

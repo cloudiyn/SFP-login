@@ -278,3 +278,28 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
   里补配置读取。独立 jar 与内置实现共用同一个 `id`，用于“检测到外部插件就跳过内置”的去重。
 - 守护测试：`WaitingAreaReleaseTransactionTest`、`ConfigStoreTest`、
   `EmbeddedModuleRegistryTest`、`CredentialLinkFlowTest`、`ModuleRegistrarTest`。
+
+## 20. 反射自检、构建约定与版本号
+
+- **反射只经 `VelocityInternalAccess`**：`velocity/.../reflect/VelocityInternalAccess` 是唯一读取
+  Velocity 内部字段/方法的入口，`FuzzyLookup` 只做按名/按类型的容错查找，不得再堆一次性工具。
+  默认方法、`methodByNames` 的无参重载等被真实调用的成员删除前必须全库 grep。
+- **启动自检**：插件启动第一件事跑 `VelocityInternalAccess.selfCheck()`（22 项探针）。全部通过记一条
+  info（含项数与服务端版本）；否则记 error 并逐项打印 `[SelfCheck] 名称：修复提示`，让“换了服务端
+  版本后某个反射点失效”在控制台能直接定位，而不是等到玩家登录时抛 NPE。新增/删除反射点要同步
+  改 `selfChecks` 与 `VelocityInternalAccessSelfCheckTest`（项数 ≥ 20）。
+- **模块构建约定**：模块的 `build.gradle.kts` 只写 `plugins { id("cn.starfallplain.sfplogin.module") }`
+  + 自己的额外依赖；`api` 依赖、JUnit 平台、`useJUnitPlatform()` 由
+  `buildSrc/.../gradle/SfpLoginModulePlugin` 统一给。toolchain 由根脚本对所有子项目设置
+  `jvmToolchain(25)`，约定插件里不要再设一次。
+- **CTD 构建**：`buildVelocityCtd` 用 `GradleBuild` 在同一进程内跑（`velocityCtd=true` +
+  `kotlin.incremental=false`），关闭增量编译规避 Kotlin `FilePageCache` 的
+  "Storage for [...] is already registered"，不再起独立的 `gradlew --no-daemon`。
+- **版本号**：`gradle.properties` 的 `modVersion` / `apiVersion` 是纯 `x.y.z`，不再有
+  `releaseChannel`、日历版本、`-SNAPSHOT` 或 git 后缀。改版本只改这两个字段。
+- **spotless 覆盖**：Kotlin、`*.gradle.kts`、以及各模块 `src/**/*.java` 都校验 `HEADER.txt` 头注释；
+  唯一例外是 `api/.../dependency/HyperDependency.java`（派生自 LuckPerms，MIT，保留原版权头）。
+- **CI**：`.github/workflows/build.yml` 在 push/PR 上跑 `./gradlew build`（含 spotlessCheck 与全部
+  测试），默认分支 push 额外构建发行包；`weekly-release.yml` 仍负责每周预发布。
+- 守护测试：`velocity/src/test/kotlin/cn/starfallplain/sfplogin/reflect/VelocityInternalAccessSelfCheckTest.kt`、
+  `.../runtime/ConnectionHandoffConcurrencyTest.kt`、`.../dialog/DialogPromptRouterRoundTripTest.kt`。

@@ -19,6 +19,7 @@
  *
  */
 
+import org.gradle.api.tasks.GradleBuild
 import org.gradle.jvm.tasks.Jar
 import org.gradle.api.tasks.Exec
 import java.time.LocalDate
@@ -29,18 +30,6 @@ plugins {
     base
     alias(libs.plugins.spotless)
     alias(libs.plugins.kotlin) apply false
-}
-
-enum class ReleaseChannel(val suffix: String) {
-    STABLE(""),
-    RC("-RC"),
-    WEEKLY("-WEEKLY"),
-    SNAPSHOT("-SNAPSHOT"),
-}
-
-enum class ApiReleaseChannel(val suffix: String) {
-    RELEASE(""),
-    SNAPSHOT("-SNAPSHOT"),
 }
 
 fun toBlockCommentHeader(headerFile: File): String {
@@ -56,134 +45,11 @@ fun Project.requireStringProperty(name: String): String =
     findProperty(name)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
         ?: error("Missing required Gradle property '$name'.")
 
-fun Project.gitDir(): File? {
-    val dotGit = rootDir.resolve(".git")
-    return when {
-        dotGit.isDirectory -> dotGit
-        dotGit.isFile -> {
-            val pointer = dotGit.readText().trim()
-            val prefix = "gitdir:"
-            if (!pointer.startsWith(prefix, ignoreCase = true)) {
-                null
-            } else {
-                rootDir.resolve(pointer.substring(prefix.length).trim()).normalize()
-            }
-        }
+val modVersion = requireStringProperty("modVersion")
+version = modVersion
 
-        else -> null
-    }
-}
-
-fun readPackedRef(gitDir: File, refPath: String): String? {
-    val packedRefs = gitDir.resolve("packed-refs")
-    if (!packedRefs.isFile) {
-        return null
-    }
-
-    return packedRefs.useLines { lines ->
-        lines
-            .filter { line -> line.isNotBlank() && !line.startsWith("#") && !line.startsWith("^") }
-            .mapNotNull { line ->
-                val parts = line.trim().split(' ', limit = 2)
-                if (parts.size == 2 && parts[1] == refPath) parts[0] else null
-            }
-            .firstOrNull()
-    }
-}
-
-fun Project.resolveGitCommitId(): String? {
-    val override = findProperty("versionGitOverride")?.toString()?.trim()
-    if (!override.isNullOrBlank()) {
-        return override
-    }
-
-    val environmentValue = sequenceOf(
-        "HZL_GIT_ID",
-        "GITHUB_SHA",
-        "CI_COMMIT_SHA",
-        "BUILD_VCS_NUMBER",
-        "GIT_COMMIT",
-    ).mapNotNull { System.getenv(it)?.trim()?.takeIf(String::isNotBlank) }.firstOrNull()
-    if (environmentValue != null) {
-        return environmentValue
-    }
-
-    val gitDir = gitDir() ?: return null
-    val headFile = gitDir.resolve("HEAD")
-    if (!headFile.isFile) {
-        return null
-    }
-
-    val head = headFile.readText().trim()
-    return if (head.startsWith("ref:")) {
-        val refPath = head.removePrefix("ref:").trim()
-        val refFile = gitDir.resolve(refPath)
-        when {
-            refFile.isFile -> refFile.readText().trim()
-            else -> readPackedRef(gitDir, refPath)
-        }
-    } else {
-        head.takeIf { it.isNotBlank() }
-    }
-}
-
-fun normalizeGitIdentifier(raw: String?): String? = raw
-    ?.trim()
-    ?.removePrefix("refs/heads/")
-    ?.ifBlank { null }
-    ?.let { value -> if (value.length > 8) value.take(8) else value }
-
-fun formatBaseVersion(
-    releaseChannel: ReleaseChannel,
-    versionPatch: Int,
-    monthlyClock: YearMonth,
-    weeklyClock: LocalDate,
-): String = when (releaseChannel) {
-    ReleaseChannel.WEEKLY -> {
-        val isoWeekFields = WeekFields.ISO
-        val weekBasedYear = weeklyClock.get(isoWeekFields.weekBasedYear()) % 100
-        val weekOfYear = weeklyClock.get(isoWeekFields.weekOfWeekBasedYear())
-        "%02d.W%02d.%d".format(weekBasedYear, weekOfYear, versionPatch)
-    }
-
-    else -> "${monthlyClock.year % 100}.${monthlyClock.monthValue}.$versionPatch"
-}
-
-fun formatApiVersion(
-    apiVersionBase: String,
-    apiReleaseChannel: ApiReleaseChannel,
-): String = apiVersionBase + apiReleaseChannel.suffix
-
-val versionClock: YearMonth = YearMonth.now()
-val weeklyVersionClock: LocalDate = LocalDate.now()
-val versionPatch = requireStringProperty("versionPatch").toIntOrNull()
-    ?.takeIf { it > 0 }
-    ?: error("Property 'versionPatch' must be a positive integer.")
-val releaseChannel = runCatching {
-    ReleaseChannel.valueOf(requireStringProperty("releaseChannel").uppercase())
-}.getOrElse {
-    error("Property 'releaseChannel' must be one of: ${ReleaseChannel.entries.joinToString()}.")
-}
-val baseVersion = formatBaseVersion(releaseChannel, versionPatch, versionClock, weeklyVersionClock)
-val gitIdentifier = normalizeGitIdentifier(resolveGitCommitId())
-val computedVersion = buildString {
-    append(baseVersion)
-    append(releaseChannel.suffix)
-    if (gitIdentifier != null) {
-        append('-')
-        append(gitIdentifier)
-    }
-}
-
-version = computedVersion
-
-val apiVersionBase = requireStringProperty("apiVersion")
-val apiReleaseChannel = runCatching {
-    ApiReleaseChannel.valueOf(requireStringProperty("apiReleaseChannel").uppercase())
-}.getOrElse {
-    error("Property 'apiReleaseChannel' must be one of: ${ApiReleaseChannel.entries.joinToString()}.")
-}
-val apiPublishedVersion = formatApiVersion(apiVersionBase, apiReleaseChannel)
+// API 版本独立维护，直接取 gradle.properties 里的 apiVersion。
+val apiPublishedVersion = requireStringProperty("apiVersion")
 extra["apiPublishedVersion"] = apiPublishedVersion
 
 val kotlinLicenseHeader = toBlockCommentHeader(rootProject.file("HEADER.txt"))
@@ -191,40 +57,29 @@ val kotlinSourceHeaderDelimiter = "^(package|@file:|import)"
 val kotlinGradleHeaderDelimiter = "^(import|plugins|buildscript|pluginManagement|dependencyResolutionManagement|rootProject|include)"
 
 spotless {
+    // 路径规则按"所有模块"收敛，而不是逐个模块列举：新增模块不需要再改这里，
+    // 但必须落在 <module>/src/** 下并带 HEADER.txt 头注释，否则 check 会失败。
     kotlin {
-        target(
-            "api/src/**/*.kt",
-            "auth-floodgate/src/**/*.kt",
-            "auth-offline/src/**/*.kt",
-            "auth-yggd/src/**/*.kt",
-            "cli/src/**/*.kt",
-            "data-merge/src/**/*.kt",
-            "profile-skin/src/**/*.kt",
-            "qq-whitelist/src/**/*.kt",
-            "safe/src/**/*.kt",
-            "vc-runtest/src/**/*.kt",
-            "velocity/src/**/*.kt",
-        )
+        target("*/src/**/*.kt")
+        targetExclude("buildSrc/**")
         licenseHeader(kotlinLicenseHeader, kotlinSourceHeaderDelimiter)
     }
 
     kotlinGradle {
-        target(
-            "build.gradle.kts",
-            "settings.gradle.kts",
-            "api/build.gradle.kts",
-            "auth-floodgate/build.gradle.kts",
-            "auth-offline/build.gradle.kts",
-            "auth-yggd/build.gradle.kts",
-            "cli/build.gradle.kts",
-            "data-merge/build.gradle.kts",
-            "profile-skin/build.gradle.kts",
-            "qq-whitelist/build.gradle.kts",
-            "safe/build.gradle.kts",
-            "vc-runtest/build.gradle.kts",
-            "velocity/build.gradle.kts",
-        )
+        target("*.gradle.kts", "*/*.gradle.kts")
         licenseHeader(kotlinLicenseHeader, kotlinGradleHeaderDelimiter)
+    }
+
+    // Java 入口类（各家 Bootstrap）与 Velocity 内部访问层同样走 HEADER.txt 头注释校验，
+    // 避免只有 Kotlin 文件受保护、Java 文件慢慢漂移。
+    // 例外：HyperDependency.java 派生自 LuckPerms（MIT），保留其原始版权头，不能覆盖成 AGPL 头。
+    java {
+        target("*/src/**/*.java")
+        targetExclude(
+            "buildSrc/**",
+            "api/src/main/java/cn/starfallplain/sfplogin/api/dependency/HyperDependency.java",
+        )
+        licenseHeader(kotlinLicenseHeader, "^(package|@file:|import)")
     }
 }
 
@@ -334,37 +189,26 @@ val collectSplitPluginJars = tasks.register<Sync>("collectSplitPluginJars") {
         }
 }
 
-val buildVelocityCtd = tasks.register<Exec>("buildVelocityCtd") {
+val buildVelocityCtd = tasks.register<GradleBuild>("buildVelocityCtd") {
     group = "build"
     description = "Builds VelocityCTD-flavored SFP-login jars using com.velocityctd Velocity dependencies."
-    workingDir = rootDir
+    this.dir = rootDir
+    this.tasks = listOf(":velocity:jar", ":velocity:monolithJar")
 
-    // VelocityCTD is built as a separate Gradle invocation, NOT a nested in-process build.
-    // A nested GradleBuild runs inside the same daemon/JVM as the outer build, and the Kotlin
-    // incremental compiler keeps a process-wide registry (FilePageCache) of its .tab cache
-    // files keyed by absolute path. The outer build runs :api:compileKotlin against the
-    // official Velocity API; the CTD build would run it again against VelocityCTD in that same
-    // JVM, so the second compile re-opens the same cacheable/caches-jvm/**/*.tab files that the
-    // first one already registered, failing with "Storage for [...] is already registered".
-    // Launching `gradlew --no-daemon` here gives the CTD build its own JVM with its own
-    // FilePageCache, so the two compile tasks never share that registry. We pass through
-    // -PreleaseChannel/etc. from the driving build so version computation stays consistent.
-    val projectProperties = gradle.startParameter.projectProperties
-        .filterKeys { it !in setOf("velocityCtd") }
-        .map { (key, value) -> "-P$key=$value" }
-
-    doFirst {
-        val onWindows = System.getProperty("os.name").lowercase().contains("windows")
-        val wrapper = rootDir.resolve(if (onWindows) "gradlew.bat" else "gradlew").absolutePath
-        val base = if (onWindows) listOf("cmd", "/c", wrapper) else listOf(wrapper)
-        commandLine(
-            *(base + listOf("--no-daemon") + projectProperties + listOf(
-                ":velocity:jar",
-                ":velocity:monolithJar",
-                "-PvelocityCtd=true",
-            )).toTypedArray(),
-        )
-    }
+    // VelocityCTD 需要把 :api 等模块对着 CTD 版 Velocity 再编译一次。早先的做法是另起一个
+    // `gradlew --no-daemon` 进程，因为 Kotlin 增量编译器在 JVM 内维护一张按绝对路径索引的
+    // FilePageCache（cacheable/caches-jvm/**/*.tab），同一 JVM 里第二次编译同一模块会对同一批
+    // .tab 重复注册，报 "Storage for [...] is already registered"。
+    //
+    // 真正的冲突源是增量编译缓存，而不是"同一进程"。所以这里用同进程的 GradleBuild，
+    // 只对 CTD 这次构建关闭 Kotlin 增量编译（kotlin.incremental=false），既避开缓存注册，
+    // 又省掉一个全新 Gradle 守护进程的启动与冷配置开销。
+    val passthroughProperties = gradle.startParameter.projectProperties
+        .filterKeys { it != "velocityCtd" && it != "kotlin.incremental" }
+    this.startParameter.projectProperties = passthroughProperties + mapOf(
+        "velocityCtd" to "true",
+        "kotlin.incremental" to "false",
+    )
 }
 
 val collectCtdPluginJars = tasks.register<Sync>("collectCtdPluginJars") {
@@ -400,15 +244,10 @@ val buildCtdDistributions = tasks.register("buildCtdDistributions") {
 
 val printVersionInfo = tasks.register("printVersionInfo") {
     group = "help"
-    description = "Prints the resolved SFP-login version components."
+    description = "Prints the SFP-login plugin and API versions."
     doLast {
-        println("SFP-login version: $computedVersion")
-        println("  baseVersion    = $baseVersion")
-        println("  releaseChannel = ${releaseChannel.name}")
-        println("  gitIdentifier  = ${gitIdentifier ?: "<none>"}")
+        println("SFP-login version: $modVersion")
         println("API version: $apiPublishedVersion")
-        println("  apiVersion     = $apiVersionBase")
-        println("  apiChannel     = ${apiReleaseChannel.name}")
     }
 }
 

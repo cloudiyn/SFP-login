@@ -48,6 +48,9 @@ class ConnectionHandoff(private val label: String) {
     fun isHolding(): Boolean = synchronized(lock) { currentState == HandoffState.HELD }
 
     /** 是否已经结束扣留（放行成功或失败）。 */
+    /** 当前仍在排队等待放行的动作数（诊断用）。 */
+    fun pendingCount(): Int = synchronized(lock) { deferred.size }
+
     fun isSettled(): Boolean = synchronized(lock) {
         currentState == HandoffState.RELEASED || currentState == HandoffState.FAILED
     }

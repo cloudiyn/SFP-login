@@ -153,13 +153,13 @@
 
 ## C 组：构建 / 反射 / 测试边界
 
-- [ ] **C1 反射隔离**：`VelocityInternalAccess` 只保留必要入口 + 启动自检（握手失败明确日志）；删除 `FuzzyLookup` 死代码
-- [ ] **C2 buildSrc 约定插件**：8 个模块的 42-44 行模板收敛为一个 convention plugin
-- [ ] **C3 CTD 子构建**：移除非必要的独立 `--no-daemon` gradle 调用（Kotlin `FilePageCache` 冲突用构建脚本规避），减少全量构建
-- [ ] **C4 测试边界**：vServer/eventLoop 并发测试、outpre 包处理测试；新增 dialog/custom packet 测试；避免 `LoginManagerTest` 级别的重反射
-- [ ] **C5 spotless 拆分**：12 条路径规则收敛为按模块配置
-- [ ] **C6 版本与发布**：`version=2.0.0`（无 `-SNAPSHOT`），删除日历版本计算/`releaseChannel` 后缀逻辑；README 更新
-- [ ] **C7 CI**：增加 build+test workflow（当前只有 weekly-release）
+- [x] **C1 反射隔离**：`VelocityInternalAccess` 只保留必要入口 + 启动自检（握手失败明确日志）；删除 `FuzzyLookup` 死代码
+- [x] **C2 buildSrc 约定插件**：8 个模块的 42-44 行模板收敛为一个 convention plugin
+- [x] **C3 CTD 子构建**：移除非必要的独立 `--no-daemon` gradle 调用（Kotlin `FilePageCache` 冲突用构建脚本规避），减少全量构建
+- [x] **C4 测试边界**：vServer/eventLoop 并发测试、outpre 包处理测试；新增 dialog/custom packet 测试；避免 `LoginManagerTest` 级别的重反射
+- [x] **C5 spotless 拆分**：12 条路径规则收敛为按模块配置
+- [x] **C6 版本与发布**：`version=2.0.0`（无 `-SNAPSHOT`），删除日历版本计算/`releaseChannel` 后缀逻辑；README 更新
+- [x] **C7 CI**：增加 build+test workflow（当前只有 weekly-release）
 - [ ] **C8 提交**：`build: 收敛构建配置与版本号`
 
 ---

@@ -21,6 +21,34 @@ SFP-login helps you build a consistent authentication layer for a Velocity netwo
 - Unifies profile creation, profile binding, and post-auth routing
 - Can be extended with optional modules for security, migration, and skin handling
 
+## What is new in 2.0
+
+- **One waiting-area model.** The embedded NanoLimbo backend implementation and the `backend-nanolimbo`
+  module are gone. The waiting area always goes through the external authentication server
+  (`vServer.outpre`); legacy `vServer.mode = backend` configs are migrated automatically and the
+  original file is kept as `core.conf.bak-<timestamp>`.
+- **Dialog login on Java 1.21.6+.** Login and register prompts are rendered as a native Minecraft
+  dialog with text inputs. Submissions come back through the private `hzl:auth` custom action and are
+  consumed by the proxy, so they never reach the backend server.
+- **Bedrock form login.** Floodgate players get a Cumulus `CustomForm` with the same fields instead of
+  typing chat commands.
+- **Automatic fallback.** Clients below 1.21.6 - including ViaVersion setups whose protocol has no
+  verified dialog packet table entry - fall back to the chat prompts, so nothing breaks silently.
+- **Plain versions.** Releases use `x.y.z` only; the calendar versioning, release channels and
+  `-SNAPSHOT` suffixes have been removed.
+
+## Building
+
+```bash
+./gradlew build                 # compile, test, spotless, main jar
+./gradlew buildAllDistributions # all-in-one + split distributions
+./gradlew buildCtdDistributions # VelocityCTD-flavored jars
+```
+
+Artifacts land in `velocity/build/libs/` (`SFP-login-<version>.jar`, `-all.jar`) and in
+`build/HZL*/` for the packaged distributions. The version is read from `gradle.properties`
+(`modVersion`, `apiVersion`).
+
 ## Supported authentication methods
 
 SFP-login currently provides these authentication modules:

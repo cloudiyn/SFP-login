@@ -22,14 +22,12 @@
 import cn.starfallplain.sfplogin.gradle.needPackageCompileOnly
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
     id("cn.starfallplain.sfplogin.runtime-dependencies")
 }
 
 dependencies {
-    // Build as a standalone Velocity plugin; reference API at compile time only
-    compileOnly(project(":api"))
-    // The auth modules are separate plugins; keep compileOnly if you reference them
+    // 认证模块是独立插件，只在这里引用它们的类型
     compileOnly(project(":auth-yggd"))
     compileOnly(project(":auth-offline"))
     compileOnly(project(":auth-floodgate"))
@@ -41,16 +39,6 @@ dependencies {
 
     compileOnly(libs.exposedCore)
     compileOnly(libs.exposedJdbc)
-
     compileOnly(libs.configurateHocon)
     compileOnly(libs.configurateExtraKotlin)
-
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testRuntimeOnly(libs.junitPlatformLauncher)
 }
-
-tasks.test {
-    useJUnitPlatform()
-}
-

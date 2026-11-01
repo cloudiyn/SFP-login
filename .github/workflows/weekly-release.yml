@@ -41,7 +41,7 @@ jobs:
           echo "name=SFP-login $TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin jars
-        run: ./gradlew clean build buildCtdDistributions -PreleaseChannel=WEEKLY
+        run: ./gradlew clean build buildCtdDistributions
 
       - name: Update weekly tag
         run: |

@@ -22,29 +22,20 @@
 import cn.starfallplain.sfplogin.gradle.needPackageCompileOnly
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
     id("cn.starfallplain.sfplogin.runtime-dependencies")
 }
 
 dependencies {
-    // The API is provided by the main plugin at runtime. Use compileOnly so
-    // the submodule is built as a standalone Velocity plugin and doesn't
-    // bundle the API classes (avoids duplication in the main shadow jar).
-    compileOnly(project(":api"))
-//    VC
+    // 以独立插件形态构建：api 由主插件在运行时提供，避免与主 jar 重复打包
     compileOnly(libs.velocityApi)
     compileOnly(libs.brigadier)
-    // Exposed ORM
     compileOnly(libs.exposedCore)
-//    config
     compileOnly(libs.configurateHocon)
     compileOnly(libs.configurateExtraKotlin)
     needPackageCompileOnly(libs.angusMail)
     needPackageCompileOnly(libs.googleAuth)
 
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testImplementation(project(":api"))
     testImplementation(libs.velocityApi)
     testImplementation(libs.nettyAll)
     testImplementation(libs.exposedCore)
@@ -54,9 +45,4 @@ dependencies {
     testImplementation(libs.configurateExtraKotlin)
     testImplementation(libs.googleAuth)
     testImplementation("io.mockk:mockk:1.13.17")
-    testRuntimeOnly(libs.junitPlatformLauncher)
-}
-
-tasks.test {
-    useJUnitPlatform()
 }

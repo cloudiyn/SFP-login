@@ -20,24 +20,14 @@
  */
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
 }
 
 dependencies {
-    compileOnly(project(":api"))
     compileOnly(libs.velocityApi)
     compileOnly(libs.configurateHocon)
     compileOnly(libs.configurateExtraKotlin)
-    // Netty Channel type is surfaced by the api/event signatures (OpenPreLoginEvent.channel);
-    // needed at compile time for the same-IP concurrent-session reservation key.
+    // Netty Channel 类型出现在 api 的事件签名里（OpenPreLoginEvent.channel），
+    // 同 IP 并发会话预留也需要它参与编译。
     compileOnly(libs.nettyAll)
-
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testRuntimeOnly(libs.junitPlatformLauncher)
 }
-
-tasks.test {
-    useJUnitPlatform()
-}
-

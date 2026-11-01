@@ -21,6 +21,29 @@ SFP-login 适合需要统一认证入口的代理服网络，例如：
 - 需要在认证完成前将玩家留在等待区 / 认证流程中
 - 希望通过独立模块扩展安全、防护、迁移、皮肤处理等能力
 
+## 2.0 的变化
+
+- **统一等待区模型**：内置 NanoLimbo 后端实现与 `backend-nanolimbo` 模块已移除，等待区一律走外部认证服
+  （`vServer.outpre`）。旧配置里的 `vServer.mode = backend` 会在启动时自动迁移，原文件备份为
+  `core.conf.bak-<时间戳>`。
+- **Java 1.21.6+ 的 dialog 登录**：登录 / 注册提示以原生 dialog 形式弹出并带输入框，提交通过私有
+  自定义动作 `hzl:auth` 回传，由代理层拦截消费，不会转发给后端服务器。
+- **基岩版表单登录**：Floodgate 玩家改用 Cumulus `CustomForm` 填同样的字段，不必再输入聊天命令。
+- **自动回退**：1.21.6 以下客户端，以及协议号未收录进 dialog 包 ID 表的 ViaVersion 组合，会自动回退到
+  聊天命令提示，不会出现"提示不显示 / 点按钮没反应"的静默失败。
+- **纯版本号**：发布版本统一为 `x.y.z`，日历版本、发布渠道与 `-SNAPSHOT` 后缀已全部移除。
+
+## 构建
+
+```bash
+./gradlew build                 # 编译、测试、spotless、主 jar
+./gradlew buildAllDistributions # 一体化 + 拆分发行包
+./gradlew buildCtdDistributions # VelocityCTD 版 jar
+```
+
+产物位于 `velocity/build/libs/`（`SFP-login-<version>.jar`、`-all.jar`）以及 `build/HZL*/` 下的打包目录。
+版本号在 `gradle.properties` 中维护（`modVersion`、`apiVersion`）。
+
 ## 支持的登录方式
 
 目前项目内主要包含以下认证模块：

@@ -296,9 +296,6 @@ object VelocityInternalAccess {
         connectedPlayerProfileField.set(player, profile)
     }
 
-    fun getConnectedPlayerProfile(player: ConnectedPlayer): GameProfile =
-        connectedPlayerProfileField.get(player) as GameProfile
-
     fun setConnectionInFlight(player: ConnectedPlayer, connection: VelocityServerConnection?) {
         connectedPlayerConnectionInFlightField.set(player, connection)
     }
@@ -595,5 +592,68 @@ object VelocityInternalAccess {
     fun invokeInitChannel(initializer: ChannelInitializer<*>, channel: io.netty.channel.Channel) {
         channelInitializerInitChannelMethod.invoke(initializer, channel)
     }
-}
+    // ══════════════════════════════════════════════════════════════════════════
+    // 启动自检
+    // ══════════════════════════════════════════════════════════════════════════
 
+    /** 一项自检失败：入口名称 + 给运维的排查提示。 */
+    data class SelfCheckFailure(val name: String, val hint: String)
+
+    /**
+     * 自检项表：名称 -> 解析探针。
+     *
+     * 探针只做"能否解析到字段/方法/类"，不触碰真实玩家连接，因此可以在启动早期调用。
+     * 任何一项解析失败都意味着当前 Velocity 版本与插件不匹配，相关功能会在运行时抛异常，
+     * 所以启动时就把结论打成明确日志，而不是等玩家登录时才报 NPE。
+     */
+    private val selfChecks: List<Pair<String, () -> Any?>> = listOf(
+        "ProtocolUtils.readVarInt" to { readVarIntInvoker },
+        "VelocityServer.connectionManager" to { velocityServerCmField },
+        "VelocityServer.connectionsByName" to { velocityServerConnectionsByNameField },
+        "VelocityServer.connectionsByUuid" to { velocityServerConnectionsByUuidField },
+        "VelocityRegisteredServer.players" to { velocityRegisteredServerPlayersField },
+        "ConnectionManager.endpoints" to { connectionManagerEndpointsField },
+        "ConnectionManager.backendChannelInitializer" to { connectionManagerBackendChannelInitializerField },
+        "ConnectedPlayer.profile" to { connectedPlayerProfileField },
+        "ConnectedPlayer.connectionInFlight" to { connectedPlayerConnectionInFlightField },
+        "ConnectedPlayer.connectedServer" to { connectedPlayerConnectedServerField },
+        "ConnectedPlayer.DEFAULT_PERMISSIONS" to { connectedPlayerDefaultPermissionsField },
+        "ConnectedPlayer.setPermissionFunction" to { connectedPlayerSetPermissionFunctionMethod },
+        "ConnectedPlayer.teardown" to { connectedPlayerTeardownMethod },
+        "VelocityServerConnection.connection" to { serverConnectionConnectionField },
+        "LoginInboundConnection.fireLogin" to { loginInboundFireLoginMethod },
+        "LoginInboundConnection.delegatedConnection" to { loginInboundDelegatedConnectionMethod },
+        "LoginInboundConnection.cleanup" to { loginInboundCleanupMethod },
+        "InitialLoginSessionHandler.inbound" to { initialLoginSessionHandlerInboundField },
+        "EncryptionRequestPacket.shouldAuthenticate" to { encryptionRequestShouldAuthenticateField },
+        "ChannelInitializer.initChannel" to { channelInitializerInitChannelMethod },
+        "class PingSessionHandler" to { pingSessionHandlerClass },
+        "class IdentifiedKeyImpl" to { identifiedKeyImplClass },
+    )
+
+    /** 自检项数量，用于启动日志里的"通过 N 项"提示。 */
+    val selfCheckItemCount: Int get() = selfChecks.size
+
+    /**
+     * 解析全部内部入口并返回失败的项。
+     *
+     * @return 空列表表示当前服务端版本与插件兼容；否则每项都带一条排查提示
+     */
+    fun selfCheck(): List<SelfCheckFailure> {
+        val failures = mutableListOf<SelfCheckFailure>()
+        for ((name, probe) in selfChecks) {
+            val resolved = runCatching { probe() != null }.getOrDefault(false)
+            if (!resolved) {
+                failures += SelfCheckFailure(name, hintFor(name))
+            }
+        }
+        return failures
+    }
+
+    private fun hintFor(name: String): String = when {
+        name.startsWith("class ") ->
+            "当前服务端缺少该内部类，插件不支持此 Velocity 版本，请升级/降级到受支持的版本"
+        else ->
+            "该字段/方法在当前 Velocity 版本中不存在或已被重命名，相关功能会在运行时不可用"
+    }
+}

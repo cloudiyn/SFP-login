@@ -54,7 +54,7 @@ tasks.test {
 }
 
 // Publish configuration to allow `api` to be published to the local Maven repository.
-// API versioning is controlled independently via apiVersion/apiReleaseChannel.
+// API 版本独立于插件版本，由 gradle.properties 的 apiVersion 维护。
 // Use `./gradlew :api:publishToMavenLocal` to publish.
 publishing {
     publications {

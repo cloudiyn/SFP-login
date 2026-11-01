@@ -20,13 +20,10 @@
  */
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
 }
 
 dependencies {
-    compileOnly(project(":api"))
-    testImplementation(project(":api"))
-
     compileOnly(libs.velocityApi)
     compileOnly(libs.velocityProxy)
     compileOnly(libs.nettyAll)
@@ -36,13 +33,6 @@ dependencies {
     compileOnly(libs.configurateExtraKotlin)
     compileOnly(libs.gson)
 
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
     testImplementation(libs.exposedJdbc)
     testImplementation(libs.gson)
-    testRuntimeOnly(libs.junitPlatformLauncher)
-}
-
-tasks.test {
-    useJUnitPlatform()
 }

@@ -20,21 +20,17 @@
  */
 
 plugins {
-    alias(libs.plugins.kotlin)
+    id("cn.starfallplain.sfplogin.module")
 }
 
 dependencies {
-    // Build as standalone plugin; api is provided at runtime by the main plugin
-    compileOnly(project(":api"))
+    // 以独立插件形态构建：api 由主插件在运行时提供
     compileOnly(libs.velocityApi)
     compileOnly(libs.floodgateApi)
     compileOnly(libs.nettyAll)
     compileOnly(libs.exposedCore)
     compileOnly(libs.configurateHocon)
 
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testImplementation(project(":api"))
     testImplementation(libs.velocityApi)
     testImplementation(libs.floodgateApi)
     testImplementation(libs.nettyAll)
@@ -42,10 +38,4 @@ dependencies {
     testImplementation(libs.exposedJdbc)
     testImplementation(libs.h2)
     testImplementation("io.mockk:mockk:1.13.17")
-    testRuntimeOnly(libs.junitPlatformLauncher)
 }
-
-tasks.test {
-    useJUnitPlatform()
-}
-

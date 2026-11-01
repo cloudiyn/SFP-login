@@ -72,6 +72,7 @@ import cn.starfallplain.sfplogin.runtime.HyperZoneRuntime
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import java.nio.file.Files
 import java.nio.file.Path
+import cn.starfallplain.sfplogin.reflect.VelocityInternalAccess
 
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 class SFPLoginMain(
@@ -145,6 +146,7 @@ class SFPLoginMain(
     @Suppress("unused", "UNUSED_PARAMETER")
     private fun startRuntime(event: ProxyInitializeEvent) {
         registerApiLogger()
+        runVelocityInternalSelfCheck()
         context.onClose("config-comment-translator") { ConfigCommentTranslatorProvider.clear() }
         context.onClose("config-format") { ConfigFormatProvider.reset() }
         // ── 第一步：加载启动前置配置（不受 i18n 影响，硬编码提示）──────────────────────
@@ -410,6 +412,33 @@ class SFPLoginMain(
             )
         )
         logger.info("已注册 Java dialog 登录提示框（协议 {}）", cn.starfallplain.sfplogin.dialog.DialogPacketIdsTable.supportedProtocols().sorted())
+    }
+
+    /**
+     * Velocity 内部 API 启动自检。
+     *
+     * 反射层解析失败时不会抛异常，而是在运行时表现为"某个功能静默失效"，所以启动时先探一遍
+     * 并给出明确日志：能跑就报一行通过，不能跑就逐项列出缺失入口与排查提示。
+     */
+    private fun runVelocityInternalSelfCheck() {
+        val failures = VelocityInternalAccess.selfCheck()
+        if (failures.isEmpty()) {
+            logger.info(
+                "Velocity 内部 API 自检通过（{} 项），当前服务端版本 {}",
+                VelocityInternalAccess.selfCheckItemCount,
+                proxy.version.version,
+            )
+            return
+        }
+
+        logger.error(
+            "Velocity 内部 API 自检失败：{} 项不可用，当前服务端版本 {}",
+            failures.size,
+            proxy.version.version,
+        )
+        for (failure in failures) {
+            logger.error("[SelfCheck] {}：{}", failure.name, failure.hint)
+        }
     }
 
     private fun logInternalTestWarning() {
