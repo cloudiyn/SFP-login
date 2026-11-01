@@ -179,3 +179,18 @@ SFP-login 的登录链路属于**严格状态机**，禁止使用会混淆状态
 - 构建：`./gradlew build`（Windows 下 `gradlew.bat build`），提交前必须为绿；
 - 单独跑某模块测试：`./gradlew :velocity:test --tests "cn.starfallplain.sfplogin.*"`；
 - 代码风格：`./gradlew spotlessApply`，提交前保持无 diff。
+
+## 14. UUID / 转发不变式（兼容基线）
+
+- **初始未认证 UUID**：由 `remap.prefix` 决定，算法是 `UUID.nameUUIDFromBytes("<prefix>:<username>")`（见 `RemapUtils.genUUID`），
+  用户名保持客户端登录时的原样、不做小写化。`remap.prefix` 的默认值固定为 `HyperZone`，**不得修改**；
+  改为 `OfflinePlayer` 属于用户侧切换离线标准生成法，属于行为变更，需要单独评估。
+- **已确定 UUID 优先**：正版校验或 Floodgate 已经给出 UUID 时直接沿用，不再重算
+  （`RemapUtils.resolveActualUuid(holderUuid, username, prefix)`）。
+- **认证后 Profile UUID**：来自数据库中的正式档案（`genProfileUUID` 的 `h2l:<小写用户名>` 仅用于没有正式档案的兜底场景）；
+  转发给后端时使用该 UUID，而不是临时 UUID。
+- **modern forwarding**：后端声明的版本号位于 `LoginPluginRequest` payload 的 32 字节签名之后，
+  解析失败一律回退 `PlayerDataForwarding.MODERN_DEFAULT`，不得因此中断登录（`decodeModernForwardingVersion`）。
+- 上述行为的守护测试：`api/src/test/kotlin/cn/starfallplain/sfplogin/api/util/RemapUtilsTest.kt`、
+  `velocity/src/test/kotlin/cn/starfallplain/sfplogin/config/RemapConfigCompatTest.kt`、
+  `velocity/src/test/kotlin/cn/starfallplain/sfplogin/inject/network/netty/replacer/LoginProfilePacketReplacerTest.kt`。

@@ -378,10 +378,16 @@ class SFPLoginMain(
 
 
     private fun loadCoreConfig() {
+        var migrated = false
         val config = ConfigLoader.loadConfig<CoreConfig>(
             dataDirectory = dataDirectory,
-            fileName = "core.conf",
-            defaultProvider = { CoreConfig() }
+            fileName = CoreConfigMigrator.CONFIG_FILE_NAME,
+            defaultProvider = { CoreConfig() },
+            postLoadHook = { node, loaded, _ ->
+                migrated = CoreConfigMigrator.migrate(node, dataDirectory, logger)
+                if (migrated) loaded.copy(vServer = loaded.vServer.copy(mode = CoreConfigMigrator.TARGET_MODE)) else loaded
+            },
+            forceSaveHook = { _, firstCreation -> firstCreation || migrated },
         )
         coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言

@@ -251,10 +251,12 @@ class NettyLoginSessionHandler(
         val remoteAddress = mcConnection.remoteAddress as InetSocketAddress
         val playerIp = remoteAddress.hostString
         
-        val actualUuid = login.holderUuid ?: run {
-            val prefix = SFPLoginMain.getCoreConfig().remap.prefix
-            RemapUtils.genUUID(login.getUsername(), prefix)
-        }
+        // 兼容基线（R1-1）：已有 UUID（正版 / Floodgate）直接沿用；否则由 remap.prefix 决定。
+        val actualUuid = RemapUtils.resolveActualUuid(
+            login.holderUuid,
+            login.getUsername(),
+            SFPLoginMain.getCoreConfig().remap.prefix,
+        )
         
         val openStartAuthEvent = OpenStartAuthEvent(
             login.getUsername(),

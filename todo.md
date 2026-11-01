@@ -76,20 +76,20 @@
 
 ## R1 兼容基线（先锁死，再动结构）
 
-- [ ] **R1-1 UUID/转发不变式**（只加护栏，不改行为）
-  - [ ] `RemapUtils.genProfile/genUUID`、`NettyLoginSessionHandler` 的 `actualUuid` 选择、`LoginProfilePacketReplacer` 的 modern forwarding 解析：加测试/断言
-  - [ ] 明确并写入文档：初始未认证 UUID 由 `remap.prefix` 决定；认证后 Profile UUID 来自数据库，转发使用该 UUID
-  - [ ] `remap.prefix` 默认值与既有配置保持不变
+- [x] **R1-1 UUID/转发不变式**（只加护栏，不改行为）
+  - [x] `RemapUtils.genProfile/genUUID`、`NettyLoginSessionHandler` 的 `actualUuid` 选择、`LoginProfilePacketReplacer` 的 modern forwarding 解析：加测试/断言
+  - [x] 明确并写入文档：初始未认证 UUID 由 `remap.prefix` 决定；认证后 Profile UUID 来自数据库，转发使用该 UUID
+  - [x] `remap.prefix` 默认值与既有配置保持不变
 
-- [ ] **R1-2 数据库兼容回归**
-  - [ ] 用一份旧版 SQLite（含 profile/credential/binding_code）启动新 jar：能读、能登录、UUID 不变
-  - [ ] 确认没有 destructive migration；新增列/表只能增量
-  - [ ] 增加自动化测试：旧 schema fixture → `DatabaseManager` 打开 → 关键查询通过
+- [x] **R1-2 数据库兼容回归**
+  - [ ] 用一份旧版 SQLite（含 profile/credential/binding_code）启动新 jar：能读、能登录、UUID 不变（真实 jar 版在 R1-4 验收）
+  - [x] 确认没有 destructive migration；新增列/表只能增量
+  - [x] 增加自动化测试：旧 schema fixture → `DatabaseManager` 打开 → 关键查询通过
 
-- [ ] **R1-3 配置自动迁移**
-  - [ ] `config.yml`：`vServer.mode: backend` → 写回 `outpre`，日志 WARN「backend 已移除，已切换 outpre」
-  - [ ] 删除 `vServer.backend.*` 整节；删除 `modules.backendNanolimbo`
-  - [ ] 迁移前备份为 `config.yml.bak-<时间戳>`；失败不阻塞启动（沿用默认值）
+- [x] **R1-3 配置自动迁移**
+  - [x] `core.conf`：`vServer.mode: backend` → 写回 `outpre`，日志 WARN「backend 已移除，已切换 outpre」
+  - [ ] 删除 `vServer.backend.*` 整节；删除 `modules.backendNanolimbo`（移到 R3-2：字段仍被后端代码引用，删代码时随数据类一起消失）
+  - [x] 迁移前备份为 `core.conf.bak-<时间戳>`；失败不阻塞启动（沿用默认值）
 
 - [ ] **R1-4 手动验收清单（真实服务端）**
   - [ ] 旧 jar 跑出的玩家 UUID = 新 jar 同一玩家 UUID（正版/离线/floodgate 各一）

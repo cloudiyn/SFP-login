@@ -49,6 +49,26 @@ internal fun shouldRewriteLoginProfile(currentProfile: GameProfile, expectedProf
     return hasSemanticGameProfileDifference(expectedProfile, currentProfile)
 }
 
+internal const val MODERN_FORWARDING_SIGNATURE_LENGTH = 32
+
+/**
+ * 解析后端在 LoginPluginRequest 中声明的 modern forwarding 版本。
+ *
+ * payload 结构为 `32 字节签名 + VarInt 版本号`；当内容缺失、长度不足以覆盖签名或 VarInt 解码失败时
+ * 返回 null，由调用方回退到 [PlayerDataForwarding.MODERN_DEFAULT]。函数不修改传入 buffer 的读指针。
+ */
+internal fun decodeModernForwardingVersion(content: ByteBuf?): Int? {
+    if (content == null) {
+        return null
+    }
+    if (content.readableBytes() <= MODERN_FORWARDING_SIGNATURE_LENGTH) {
+        return null
+    }
+    val duplicate = content.duplicate()
+    duplicate.skipBytes(MODERN_FORWARDING_SIGNATURE_LENGTH)
+    return runCatching { ProtocolUtils.readVarInt(duplicate) }.getOrNull()
+}
+
 /**
  * 重写发往后端的登录档案包（事件驱动版）。
  *
@@ -60,10 +80,6 @@ internal fun shouldRewriteLoginProfile(currentProfile: GameProfile, expectedProf
 class LoginProfilePacketReplacer(
     private val channel: Channel
 ) : ChannelOutboundHandlerAdapter() {
-    companion object {
-        private const val MODERN_FORWARDING_SIGNATURE_LENGTH = 32
-    }
-
     private lateinit var player: Player
     private lateinit var hyperPlayer: HyperZonePlayer
     private lateinit var targetServerName: String
@@ -107,30 +123,15 @@ class LoginProfilePacketReplacer(
     }
 
     private fun resolveRequestedForwardingVersion(content: ByteBuf?): Int {
-        if (content == null) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
-                "[ProfileSkinFlow] modern forwarding version missing content, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, target=$targetServerName"
-            }
-            return PlayerDataForwarding.MODERN_DEFAULT
+        val decoded = decodeModernForwardingVersion(content)
+        if (decoded != null) {
+            return decoded
         }
 
-        val readableBytes = content.readableBytes()
-        if (readableBytes <= MODERN_FORWARDING_SIGNATURE_LENGTH) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
-                "[ProfileSkinFlow] modern forwarding version payload too short, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName"
-            }
-            return PlayerDataForwarding.MODERN_DEFAULT
+        debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            "[ProfileSkinFlow] modern forwarding version unavailable, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=${content?.readableBytes()}, target=$targetServerName"
         }
-
-        val duplicate = content.duplicate()
-        duplicate.skipBytes(MODERN_FORWARDING_SIGNATURE_LENGTH)
-        return runCatching {
-            ProtocolUtils.readVarInt(duplicate)
-        }.onFailure { throwable ->
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
-                "[ProfileSkinFlow] modern forwarding version decode failed, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName, reason=${throwable.message}"
-            }
-        }.getOrDefault(PlayerDataForwarding.MODERN_DEFAULT)
+        return PlayerDataForwarding.MODERN_DEFAULT
     }
 
     private fun getPlayerRemoteAddressAsString(): String {

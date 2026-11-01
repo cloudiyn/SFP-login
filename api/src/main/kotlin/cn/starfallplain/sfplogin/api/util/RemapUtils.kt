@@ -59,6 +59,20 @@ object RemapUtils {
     }
 
     /**
+     * 解析本次登录应使用的「实际 UUID」。
+     *
+     * 不变式（兼容基线，见 R1-1）：
+     * - 若前置流程（正版校验 / Floodgate）已经确定了 UUID，直接沿用，不再重算；
+     * - 否则（离线、未认证阶段）按 `remap.prefix` 生成稳定 UUID：同一用户名 + 同一前缀始终得到同一 UUID；
+     * - 认证完成后，正式 Profile UUID 来自数据库，转发给后端使用该 UUID。
+     *
+     * 因此迁移时必须保留 `remap.prefix` 的默认值（当前为 `HyperZone`），否则未认证阶段的 UUID 会漂移。
+     */
+    fun resolveActualUuid(holderUuid: UUID?, username: String, prefix: String): UUID {
+        return holderUuid ?: genUUID(username, prefix)
+    }
+
+    /**
      * 根据正式用户名生成稳定的 Profile UUID。
      */
     fun genProfileUUID(username: String): UUID {
